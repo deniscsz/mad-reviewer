@@ -28,4 +28,46 @@ describe("selectAutoApply", () => {
     const result = selectAutoApply(all, ["x.sql", "ops/Dockerfile"]);
     expect(result.map((s) => s.name).sort()).toEqual(["docker", "sql"]);
   });
+
+  const CODE = "**/*.{ts,tsx,js,jsx,mts,cts,go,java,php,py,rs,kt,scala,rb,cs}";
+  const bundled = [
+    skill("concurrency-async", [CODE]),
+    skill("error-handling", [CODE]),
+    skill("resource-leaks", [CODE]),
+    skill("performance", [CODE]),
+    skill("typescript-javascript", ["**/*.{ts,tsx,js,jsx,mts,cts}"]),
+    skill("react", ["**/*.{tsx,jsx}"]),
+  ];
+
+  it("a .tsx file selects react, ts-js, and all cross-cutting skills", () => {
+    const result = selectAutoApply(bundled, ["src/App.tsx"]);
+    expect(result.map((s) => s.name).sort()).toEqual([
+      "concurrency-async",
+      "error-handling",
+      "performance",
+      "react",
+      "resource-leaks",
+      "typescript-javascript",
+    ]);
+  });
+
+  it("a .py file selects cross-cutting skills but not react/ts-js", () => {
+    const result = selectAutoApply(bundled, ["service/worker.py"]);
+    expect(result.map((s) => s.name).sort()).toEqual([
+      "concurrency-async",
+      "error-handling",
+      "performance",
+      "resource-leaks",
+    ]);
+  });
+
+  it("a .php file selects cross-cutting skills but not react/ts-js", () => {
+    const result = selectAutoApply(bundled, ["app/Http/Controller.php"]);
+    expect(result.map((s) => s.name).sort()).toEqual([
+      "concurrency-async",
+      "error-handling",
+      "performance",
+      "resource-leaks",
+    ]);
+  });
 });

@@ -42,7 +42,20 @@ applies_to:
 - Non-idempotent migrations that fail on re-run
 ```
 
-Matching uses [`minimatch`](https://github.com/isaacs/minimatch) with `dot: true`.
+Matching uses [`minimatch`](https://github.com/isaacs/minimatch) with `dot: true`
+(brace expansion like `**/*.{ts,tsx}` is supported).
+
+Bundled auto-apply skills:
+
+| Skill | Loads when the PR touches | Catches |
+|-------|---------------------------|---------|
+| `concurrency-async` | any code file | races, missing `await`, unhandled rejections, leaked goroutines/threads |
+| `error-handling` | any code file | swallowed errors, broad catches, broken propagation, partial-failure |
+| `resource-leaks` | any code file | unclosed connections/files, dangling listeners, uncleared timers |
+| `performance` | any code file | N+1, queries in loops, quadratic work, unbounded retention |
+| `typescript-javascript` | `.ts/.tsx/.js/.jsx/.mts/.cts` | `==` vs `===`, `any`, missing `await`, stale closures |
+| `react` | `.tsx/.jsx` | Rules of Hooks, effect deps/cleanup, fetch races, index keys, RSC misuse |
+| `sql-migrations` | `.sql`, `migrations/` | destructive migrations, missing indexes, non-idempotent runs |
 
 ### 3. Per-repo override (`.mad-reviewer/skills/`)
 
