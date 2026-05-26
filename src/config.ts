@@ -5,6 +5,7 @@ const EnvSchema = z.object({
   GITHUB_PRIVATE_KEY: z.string().min(1),
   GITHUB_WEBHOOK_SECRET: z.string().min(1),
   MAD_REVIEWER_ADAPTER: z.string().default("claude"),
+  MAD_REVIEWER_OPENCODE_MODEL: z.string().min(1).optional(),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
   DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(15000),
   MAX_RETRIES: z.coerce.number().int().positive().default(3),
@@ -13,6 +14,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DEFAULTS_DIR: z.string().default("./skills/defaults"),
   AUTO_APPLY_DIR: z.string().default("./skills/auto-apply"),
+  SOUL_PATH: z.string().default("./SOUL.md"),
 });
 
 export interface Config {
@@ -20,6 +22,7 @@ export interface Config {
   privateKey: string;
   webhookSecret: string;
   adapter: string;
+  opencodeModel?: string;
   aiTimeoutMs: number;
   debounceMs: number;
   maxRetries: number;
@@ -28,6 +31,7 @@ export interface Config {
   port: number;
   defaultsDir: string;
   autoApplyDir: string;
+  soulPath: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -37,6 +41,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     privateKey: e.GITHUB_PRIVATE_KEY,
     webhookSecret: e.GITHUB_WEBHOOK_SECRET,
     adapter: e.MAD_REVIEWER_ADAPTER,
+    opencodeModel: e.MAD_REVIEWER_OPENCODE_MODEL,
     aiTimeoutMs: e.AI_TIMEOUT_MS,
     debounceMs: e.DEBOUNCE_MS,
     maxRetries: e.MAX_RETRIES,
@@ -45,5 +50,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: e.PORT,
     defaultsDir: e.DEFAULTS_DIR,
     autoApplyDir: e.AUTO_APPLY_DIR,
+    soulPath: e.SOUL_PATH,
   };
 }

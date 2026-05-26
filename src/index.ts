@@ -8,6 +8,7 @@ import { runReview } from "./runner.js";
 import { createAdapter } from "./adapters/index.js";
 import { clonePrHead, computeDiff } from "./workspace.js";
 import { loadSkills } from "./skills/loader.js";
+import { loadSoul } from "./soul/loader.js";
 import {
   listActiveBotComments,
   postInlineFinding,
@@ -26,7 +27,10 @@ const probot = new Probot({
 });
 
 const queue = new Queue(config.sqlitePath, config.debounceMs);
-const adapter = createAdapter(config.adapter, { timeoutMs: config.aiTimeoutMs });
+const adapter = createAdapter(config.adapter, {
+  timeoutMs: config.aiTimeoutMs,
+  opencodeModel: config.opencodeModel,
+});
 
 async function getClient(installationId: number): Promise<GitHubClient> {
   const octokit = await probot.auth(installationId);
@@ -47,11 +51,12 @@ async function runOne(qjob: QueueJob): Promise<void> {
     clonePrHead,
     computeDiff,
     loadSkills,
+    loadSoul,
     adapter,
     listActiveBotComments,
     postInlineFinding,
     resolveWithReply,
-    config: { defaultsDir: config.defaultsDir, autoApplyDir: config.autoApplyDir },
+    config: { defaultsDir: config.defaultsDir, autoApplyDir: config.autoApplyDir, soulPath: config.soulPath },
     log,
   });
 }

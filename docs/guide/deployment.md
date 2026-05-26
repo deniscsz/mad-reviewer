@@ -10,13 +10,15 @@ The runtime environment must provide:
 
 - **Node ≥ 22**
 - **git** on the `PATH` (clones PR heads)
-- The chosen **AI CLI** (default `claude`) installed **and authenticated**
+- The chosen **AI CLI** installed **and authenticated** — `claude` (default) or
+  `opencode` (needs a provider configured / API key); set via `MAD_REVIEWER_ADAPTER`
 - A **persistent volume** for the SQLite queue (`SQLITE_PATH`)
 
 ## Docker
 
 The repo ships a `Dockerfile` that installs `git`, builds the project, and
-copies the default skills:
+copies the default skills and the default `SOUL.md` persona (overridable per repo
+at `.mad-reviewer/SOUL.md` or via `SOUL_PATH` — see [Persona](/guide/soul)):
 
 ```bash
 docker build -t mad-reviewer .

@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "GitHub App Setup", link: "/guide/github-app-setup" },
           { text: "Configuration", link: "/guide/configuration" },
           { text: "Skills", link: "/guide/skills" },
+          { text: "Persona (SOUL.md)", link: "/guide/soul" },
           { text: "Deployment", link: "/guide/deployment" },
         ],
       },

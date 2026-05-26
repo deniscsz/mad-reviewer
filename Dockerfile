@@ -12,6 +12,7 @@ COPY src ./src
 RUN npm run build
 
 COPY skills ./skills
+COPY SOUL.md ./
 
 ENV SQLITE_PATH=/data/queue.db
 VOLUME ["/data"]

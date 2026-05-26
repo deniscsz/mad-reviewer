@@ -30,9 +30,17 @@ human-resolved threads are never modified.
 
 ## Can I use something other than Claude?
 
-Yes. The AI tool sits behind the `AiAdapter` interface. `claude` ships by
-default; adding `cursor`, `opencode`, or another non-interactive CLI is a
-contained change — see [Adapters](/architecture/adapters).
+Yes. The AI tool sits behind the `AiAdapter` interface. Two adapters ship built
+in — `claude` (default) and `opencode` — selectable with `MAD_REVIEWER_ADAPTER`.
+Adding `cursor` or another non-interactive CLI is a contained change — see
+[Adapters](/architecture/adapters).
+
+## Can I change the reviewer's tone / how it talks?
+
+Yes. Drop a `SOUL.md` persona file in the project (path `SOUL_PATH`, default
+`./SOUL.md`) or override it per repo at `.mad-reviewer/SOUL.md`. It shapes the
+**voice** of the review comments (professional, sarcastic, …) but never changes
+which bugs are reported or the output format. See [Persona](/guide/soul).
 
 ## How do I review only certain file types with extra rules?
 

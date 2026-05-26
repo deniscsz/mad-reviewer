@@ -11,7 +11,8 @@ exit immediately with a validation error; numeric values are coerced.
 | `GITHUB_APP_ID` | ✅ | — | GitHub App ID |
 | `GITHUB_PRIVATE_KEY` | ✅ | — | GitHub App private key (PEM, multi-line) |
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret (must match the App config) |
-| `MAD_REVIEWER_ADAPTER` | | `claude` | Which AI adapter to use. Only `claude` is built in; see [Adapters](/architecture/adapters) |
+| `MAD_REVIEWER_ADAPTER` | | `claude` | Which AI adapter to use: `claude` or `opencode`; see [Adapters](/architecture/adapters) |
+| `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` passed to `opencode run --model`. Unset → opencode's own default |
 | `AI_TIMEOUT_MS` | | `300000` | Maximum time for one AI CLI invocation, in ms |
 | `DEBOUNCE_MS` | | `15000` | How long to coalesce a burst of pushes before running, in ms |
 | `MAX_RETRIES` | | `3` | Attempts before a job is marked `failed` |
@@ -20,6 +21,7 @@ exit immediately with a validation error; numeric values are coerced.
 | `PORT` | | `3000` | HTTP port for webhooks and `/health` |
 | `DEFAULTS_DIR` | | `./skills/defaults` | Directory of always-on skills |
 | `AUTO_APPLY_DIR` | | `./skills/auto-apply` | Directory of glob-selected skills |
+| `SOUL_PATH` | | `./SOUL.md` | Project-default persona file; see [Persona](/guide/soul) |
 
 ## Notes
 
@@ -34,6 +36,13 @@ exit immediately with a validation error; numeric values are coerced.
   (status `124`) and **nothing is posted** — the job retries up to `MAX_RETRIES`.
 - **`SQLITE_PATH`** should live on a persistent volume in production so the queue
   survives restarts. It holds *only* orchestration state, never findings.
+- **`MAD_REVIEWER_OPENCODE_MODEL`** only applies when `MAD_REVIEWER_ADAPTER=opencode`.
+  Leave it unset to use whatever model opencode is configured with
+  (`~/.config/opencode/opencode.json`); set it to pin one, e.g.
+  `anthropic/claude-sonnet-4`.
+- **`SOUL_PATH`** points at the project-default persona file. A reviewed repo can
+  override it with its own `.mad-reviewer/SOUL.md`. If neither exists, no persona is
+  injected. See [Persona](/guide/soul).
 
 ## Example
 
@@ -45,8 +54,9 @@ GITHUB_APP_ID=
 GITHUB_PRIVATE_KEY=
 GITHUB_WEBHOOK_SECRET=
 
-# AI adapter
+# AI adapter (claude | opencode)
 MAD_REVIEWER_ADAPTER=claude
+# MAD_REVIEWER_OPENCODE_MODEL=anthropic/claude-sonnet-4   # opencode only
 AI_TIMEOUT_MS=300000
 
 # Orchestration
@@ -61,4 +71,7 @@ PORT=3000
 # Skills
 DEFAULTS_DIR=./skills/defaults
 AUTO_APPLY_DIR=./skills/auto-apply
+
+# Persona
+SOUL_PATH=./SOUL.md
 ```

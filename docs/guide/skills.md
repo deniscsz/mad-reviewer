@@ -5,6 +5,9 @@ report it**. They are the knobs you tune to make the reviewer match your team's
 standards. The agent assembles an *effective* set of skills for each PR from
 three tiers and writes them into the AI's working directory before the run.
 
+> Skills decide *what* gets flagged; [SOUL.md](/guide/soul) decides *how the
+> reviewer talks*. They are independent.
+
 ## The three tiers
 
 ```

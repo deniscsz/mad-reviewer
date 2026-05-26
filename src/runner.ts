@@ -23,6 +23,7 @@ export interface RunnerDeps {
   loadSkills(opts: {
     defaultsDir: string; autoApplyDir: string; workspaceDir: string; changedFiles: string[];
   }): Promise<EffectiveSkills>;
+  loadSoul(opts: { soulPath: string; workspaceDir: string }): Promise<string | undefined>;
   adapter: AiAdapter;
   listActiveBotComments(client: GitHubClient, owner: string, repo: string, pr: number): Promise<ActiveComment[]>;
   postInlineFinding(
@@ -33,7 +34,7 @@ export interface RunnerDeps {
     client: GitHubClient, owner: string, repo: string, pr: number,
     args: { commentId: number; threadId: string; commitSha: string },
   ): Promise<void>;
-  config: { defaultsDir: string; autoApplyDir: string };
+  config: { defaultsDir: string; autoApplyDir: string; soulPath: string };
   log: (event: Record<string, unknown>) => void;
 }
 
@@ -52,7 +53,8 @@ export async function runReview(job: Job, deps: RunnerDeps): Promise<RunSummary>
       workspaceDir: ws.dir,
       changedFiles,
     });
-    const findings = await deps.adapter.review({ workspaceDir: ws.dir, changedFiles, diff, skills });
+    const soul = await deps.loadSoul({ soulPath: deps.config.soulPath, workspaceDir: ws.dir });
+    const findings = await deps.adapter.review({ workspaceDir: ws.dir, changedFiles, diff, skills, soul });
     const current = findings.map((finding) => ({
       finding,
       fp: computeFingerprint({ file: finding.file, category: finding.category, dedupeKey: finding.dedupeKey }),

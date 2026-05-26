@@ -53,10 +53,13 @@ Findings live in GitHub; SQLite holds only orchestration state.
 
 ## Features
 
-- **Configurable AI adapter** — default `claude -p` (headless); the adapter
-  interface is swappable (`cursor`, `opencode`, … are easy to add).
+- **Configurable AI adapter** — `claude -p` (default) and `opencode run` ship
+  built in; the adapter interface is swappable (`cursor`, … are easy to add).
 - **3-tier skills** — always-on defaults, glob-selected auto-apply skills, and
   per-repo overrides committed in the reviewed repo itself.
+- **Customizable persona (`SOUL.md`)** — tune the reviewer's voice (professional,
+  sarcastic, …) with a project default, overridable per repo at
+  `.mad-reviewer/SOUL.md`. Affects wording only, never what gets flagged.
 - **Deterministic fingerprint dedup** — a bug keeps its identity across runs
   even when it moves lines, so comments are never duplicated.
 - **Self-resolving comments** — fixed bugs get their threads resolved with a
@@ -113,7 +116,8 @@ All configuration is via environment variables (parsed/validated in
 | `GITHUB_APP_ID` | ✅ | — | GitHub App ID |
 | `GITHUB_PRIVATE_KEY` | ✅ | — | GitHub App private key (PEM) |
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret |
-| `MAD_REVIEWER_ADAPTER` | | `claude` | AI adapter to use (`claude` supported) |
+| `MAD_REVIEWER_ADAPTER` | | `claude` | AI adapter to use: `claude` or `opencode` |
+| `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` for `--model` (unset → opencode default) |
 | `AI_TIMEOUT_MS` | | `300000` | Per-run AI CLI timeout (ms) |
 | `DEBOUNCE_MS` | | `15000` | Coalesce a burst of pushes before running (ms) |
 | `MAX_RETRIES` | | `3` | Retries before a job is marked failed |
@@ -122,6 +126,7 @@ All configuration is via environment variables (parsed/validated in
 | `PORT` | | `3000` | HTTP port |
 | `DEFAULTS_DIR` | | `./skills/defaults` | Always-on skills directory |
 | `AUTO_APPLY_DIR` | | `./skills/auto-apply` | Conditionally-applied skills directory |
+| `SOUL_PATH` | | `./SOUL.md` | Project-default persona file (overridable per repo) |
 
 ## Skills
 
@@ -145,6 +150,16 @@ bug its identity across runs.
 > revisão (commit …)"*). Adjust the string in
 > [`src/github/comments.ts`](./src/github/comments.ts) if your audience differs.
 
+## Persona (`SOUL.md`)
+
+Skills decide *what* gets flagged; **`SOUL.md`** decides *how the reviewer talks*.
+A project-default `SOUL.md` (path `SOUL_PATH`, default `./SOUL.md`) is injected into
+the AI prompt to set the persona — professional, sarcastic, however you like — and
+each reviewed repo can override it with its own `.mad-reviewer/SOUL.md`. The persona
+shapes only the wording of findings; it never changes which bugs are reported or the
+JSON output contract. Full guide:
+**https://deniscsz.github.io/mad-reviewer/guide/soul**.
+
 ## Docker
 
 ```bash
@@ -163,7 +178,7 @@ src/
   fingerprint.ts     # deterministic bug identity + comment marker
   reconciler.ts      # create / keep / resolve decision logic
   skills/            # loader (3-tier) + auto-apply glob selection
-  adapters/          # AiAdapter interface + claude adapter + parser
+  adapters/          # AiAdapter interface + claude & opencode adapters + parser
   github/comments.ts # list active bot comments, post inline, resolve thread
   queue/queue.ts     # SQLite orchestration queue
   workspace.ts       # clone PR head + diff (via safe subprocess wrapper)

@@ -12,6 +12,7 @@ interface ReviewInput {
   changedFiles: string[];  // diff focus
   diff: string;
   skills: EffectiveSkills; // merged 3-tier skills
+  soul?: string;           // optional persona text (SOUL.md)
 }
 
 interface AiAdapter {
@@ -20,8 +21,8 @@ interface AiAdapter {
 }
 ```
 
-`createAdapter(name, opts)` is a factory keyed on `MAD_REVIEWER_ADAPTER`. Only
-`claude` is built in; unknown names throw.
+`createAdapter(name, opts)` is a factory keyed on `MAD_REVIEWER_ADAPTER`.
+`claude` and `opencode` are built in; unknown names throw.
 
 ## The Claude adapter
 
@@ -55,10 +56,46 @@ PR-controlled values (branch names, SHAs, file paths) can never be interpreted
 as shell metacharacters. It never throws; it returns `{ stdout, stderr, status }`
 and the caller decides whether a non-zero status is fatal.
 
+## The OpenCode adapter
+
+`OpenCodeAdapter` drives the official `opencode` CLI in its non-interactive
+`opencode run` mode. The shape mirrors the Claude adapter, with two differences
+that come from how `opencode run` works:
+
+1. **Diff delivery via `-f`, not stdin.** `opencode run` takes its prompt as a
+   positional argument and has no reliable stdin. Embedding a large PR diff in
+   the argument would risk `ARG_MAX` (`E2BIG`). Instead the adapter writes the
+   diff to `<workspace>/.mad-reviewer/pr.diff` and attaches it with
+   `-f <path>` — only the path is an argv element, so the size is unbounded.
+   The (small) skill rules are inlined into the prompt; the diff is the only
+   large input, and it never touches the argument list. The adapter does **not**
+   write an `AGENTS.md`, to avoid clobbering one the reviewed repo may ship.
+2. **JSONL output parsing.** It runs `opencode run --format json`, which emits
+   one JSON event per line. The assistant's answer arrives in `text` parts;
+   `extractOpencodeText` reconstructs that text (deduping incremental updates by
+   part id and ignoring tool/thinking/step events), then the shared
+   `extractFindingsJson` + `Finding[]` zod schema validate it. A non-zero exit
+   or malformed output throws — the run fails cleanly and nothing is posted.
+
+The model is opencode's own configured default unless
+`MAD_REVIEWER_OPENCODE_MODEL` is set, in which case it is passed as
+`--model provider/model`. opencode must be installed **and** have a provider
+configured/authenticated in the runtime environment.
+
+## Persona injection
+
+Both adapters accept an optional `soul` string on `ReviewInput`. When set, each
+`buildPrompt` splices a `## Persona` block into the prompt — verbatim persona text
+wrapped in a guard that scopes it to the **voice and wording** of the findings
+(`title`/`body`) only, never the bug selection or the output-contract JSON. When
+`soul` is absent the block is omitted and behavior is unchanged. The text comes
+from `loadSoul` (project-default `SOUL_PATH`, overridable per repo at
+`.mad-reviewer/SOUL.md`) — see [Persona](/guide/soul).
+
 ## Adding a new adapter
 
-`cursor`, `opencode`, or any other non-interactive tool can be added without
-touching the rest of the system:
+`cursor` or any other non-interactive tool can be added without touching the
+rest of the system:
 
 1. Implement `AiAdapter` — invoke your CLI through `execFileNoThrow` and parse
    its output into validated `Finding[]` (reuse `extractFindingsJson` and

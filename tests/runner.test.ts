@@ -13,11 +13,12 @@ function makeDeps(over: Partial<RunnerDeps> = {}): RunnerDeps {
     clonePrHead: vi.fn(async () => ({ dir: "/tmp/x", cleanup: vi.fn(async () => {}) })),
     computeDiff: vi.fn(async () => ({ diff: "d", changedFiles: ["src/a.ts"] })),
     loadSkills: vi.fn(async () => ({ skills: [] })),
+    loadSoul: vi.fn(async () => undefined),
     adapter: { name: "fake", review: vi.fn(async () => [finding]) },
     listActiveBotComments: vi.fn(async () => []),
     postInlineFinding: vi.fn(async () => {}),
     resolveWithReply: vi.fn(async () => {}),
-    config: { defaultsDir: "/d", autoApplyDir: "/a" },
+    config: { defaultsDir: "/d", autoApplyDir: "/a", soulPath: "/s" },
     log: vi.fn(),
     ...over,
   };
@@ -60,6 +61,16 @@ describe("runReview", () => {
       expect.objectContaining({ commentId: 9, threadId: "T9", commitSha: "head1" }),
     );
     expect(summary).toMatchObject({ created: 0, resolved: 1 });
+  });
+
+  it("passes the loaded soul through to the adapter", async () => {
+    const review = vi.fn(async () => []);
+    const deps = makeDeps({
+      loadSoul: vi.fn(async () => "SOUL!"),
+      adapter: { name: "fake", review },
+    });
+    await runReview(job, deps);
+    expect(review).toHaveBeenCalledWith(expect.objectContaining({ soul: "SOUL!" }));
   });
 
   it("cleans up the workspace even if the adapter throws", async () => {

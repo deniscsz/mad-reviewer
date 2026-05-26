@@ -64,4 +64,27 @@ describe("ClaudeAdapter", () => {
       adapter.review({ workspaceDir, changedFiles: [], diff: "", skills }),
     ).rejects.toThrow();
   });
+
+  it("injects the persona block into the prompt when soul is provided", async () => {
+    let captured = "";
+    const fakeRun = async (_f: string, _a: string[], opts: { input?: string }) => {
+      captured = opts.input ?? "";
+      return { stdout: JSON.stringify({ result: "[]" }), stderr: "", status: 0 };
+    };
+    const adapter = new ClaudeAdapter({ timeoutMs: 1000, run: fakeRun });
+    await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills, soul: "BE SARCASTIC" });
+    expect(captured).toContain("## Persona");
+    expect(captured).toContain("BE SARCASTIC");
+  });
+
+  it("omits the persona block when no soul is provided", async () => {
+    let captured = "";
+    const fakeRun = async (_f: string, _a: string[], opts: { input?: string }) => {
+      captured = opts.input ?? "";
+      return { stdout: JSON.stringify({ result: "[]" }), stderr: "", status: 0 };
+    };
+    const adapter = new ClaudeAdapter({ timeoutMs: 1000, run: fakeRun });
+    await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills });
+    expect(captured).not.toContain("## Persona");
+  });
 });

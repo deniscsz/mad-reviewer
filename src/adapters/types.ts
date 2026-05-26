@@ -6,6 +6,7 @@ export interface ReviewInput {
   changedFiles: string[];
   diff: string;
   skills: EffectiveSkills;
+  soul?: string;
 }
 
 export interface AiAdapter {
