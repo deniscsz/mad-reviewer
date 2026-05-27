@@ -8,11 +8,12 @@ headless `claude` CLI.
 
 ```ts
 interface ReviewInput {
-  workspaceDir: string;    // the cloned PR checkout
-  changedFiles: string[];  // diff focus
+  workspaceDir: string;     // the cloned PR checkout
+  changedFiles: string[];   // diff focus
   diff: string;
-  skills: EffectiveSkills; // merged 3-tier skills
-  soul?: string;           // optional persona text (SOUL.md)
+  skills: EffectiveSkills;  // merged 3-tier skills
+  soul?: string;            // optional persona text (SOUL.md)
+  loadRepoSkills?: boolean; // also load the repo's own native skills (default true)
 }
 
 interface AiAdapter {
@@ -28,13 +29,18 @@ interface AiAdapter {
 
 `ClaudeAdapter.review()`:
 
-1. Writes the effective skills into `<workspace>/.claude/skills/*.md` so the CLI
-   picks them up natively.
-2. Builds a prompt (changed files + diff + an instruction to emit the
-   `output-contract` JSON).
-3. Runs `claude -p --output-format json` in the workspace via the safe
-   subprocess wrapper.
-4. Validates: a non-zero exit throws; the result is parsed and checked against
+1. Builds a prompt that **inlines the curated skills** (the merged 3-tier set) as
+   the authoritative review rules, plus changed files, diff, and the instruction
+   to emit the `output-contract` JSON. The curated rules are inlined — not written
+   to `.claude/skills/` — so the output contract is always present and the repo's
+   own `.claude/skills/` dir is left untouched.
+2. Runs `claude -p --output-format json --permission-mode dontAsk
+   --allowedTools "Read,Glob,Grep,Skill"` in the workspace via the safe subprocess
+   wrapper. `dontAsk` makes the headless run CI-safe (unlisted tools are denied,
+   never prompted); the allowlist lets the model read files and invoke the repo's
+   **native** project skills (`.claude/skills/<name>/SKILL.md`) but **not** run
+   `Bash`/`Edit`/`Write`.
+3. Validates: a non-zero exit throws; the result is parsed and checked against
    the `Finding[]` zod schema. **Malformed output throws** — the run fails
    cleanly and nothing is posted.
 
@@ -56,10 +62,35 @@ PR-controlled values (branch names, SHAs, file paths) can never be interpreted
 as shell metacharacters. It never throws; it returns `{ stdout, stderr, status }`
 and the caller decides whether a non-zero status is fatal.
 
+## Native repo skills & untrusted-checkout hardening
+
+Both adapters run the provider **inside the PR checkout**, so the reviewed repo's
+own agent skills are discovered natively (Claude: `.claude/skills/`; OpenCode:
+`.claude/skills/`, `.agents/skills/`, `.opencode/skill/`). This is gated by
+`ReviewInput.loadRepoSkills` (env `MAD_REVIEWER_LOAD_REPO_SKILLS`, default on).
+
+Because that checkout is **untrusted PR content**, three guards run regardless of
+adapter:
+
+1. **Token strip.** `clonePrHead` removes the `origin` remote after fetching, so
+   the installation token embedded in the clone URL never lingers in
+   `.git/config` where a skill could read it. The diff is computed from local
+   objects only.
+2. **Config neutralization.** `sanitizeUntrustedConfig` deletes
+   `.claude/settings.json`, `.claude/settings.local.json`, and `.mcp.json` from
+   the checkout — the auto-loaded vectors (hooks, MCP servers) that could execute
+   code. When `loadRepoSkills` is `false` it also removes the native skill
+   directories; `.mad-reviewer/skills/` is always preserved.
+3. **Tool restriction.** The Claude adapter's `--allowedTools` and the OpenCode
+   `review` agent both permit only read + skill, never shell or file edits.
+
+Skills themselves are inert prompt text, so loading them is safe; only
+config/hooks/plugins can run code, and those are the things that get neutralized.
+
 ## The OpenCode adapter
 
 `OpenCodeAdapter` drives the official `opencode` CLI in its non-interactive
-`opencode run` mode. The shape mirrors the Claude adapter, with two differences
+`opencode run` mode. The shape mirrors the Claude adapter, with three differences
 that come from how `opencode run` works:
 
 1. **Diff delivery via `-f`, not stdin.** `opencode run` takes its prompt as a
@@ -67,10 +98,19 @@ that come from how `opencode run` works:
    the argument would risk `ARG_MAX` (`E2BIG`). Instead the adapter writes the
    diff to `<workspace>/.mad-reviewer/pr.diff` and attaches it with
    `-f <path>` — only the path is an argv element, so the size is unbounded.
-   The (small) skill rules are inlined into the prompt; the diff is the only
-   large input, and it never touches the argument list. The adapter does **not**
-   write an `AGENTS.md`, to avoid clobbering one the reviewed repo may ship.
-2. **JSONL output parsing.** It runs `opencode run --format json`, which emits
+   The (small) curated skill rules are inlined into the prompt; the diff is the
+   only large input, and it never touches the argument list. The adapter does
+   **not** write an `AGENTS.md`, to avoid clobbering one the reviewed repo may
+   ship.
+2. **Restricted agent + trusted config.** It runs `opencode run --agent review`
+   with `OPENCODE_DISABLE_PROJECT_CONFIG=true` and `OPENCODE_CONFIG` pointing at a
+   trusted config (`opencode.review.json`). The `review` agent allows `read` and
+   `skill` but denies `bash`/`edit`/`webfetch`/`task`. Disabling project config
+   stops the reviewed repo's own opencode config, `AGENTS.md`, and **plugins**
+   (which would otherwise load and run arbitrary code) from overriding the
+   restrictions, while leaving external skill discovery (`.claude/skills`,
+   `.agents/skills`) intact.
+3. **JSONL output parsing.** It runs `opencode run --format json`, which emits
    one JSON event per line. The assistant's answer arrives in `text` parts;
    `extractOpencodeText` reconstructs that text (deduping incremental updates by
    part id and ignoring tool/thinking/step events), then the shared

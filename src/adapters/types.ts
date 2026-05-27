@@ -7,6 +7,9 @@ export interface ReviewInput {
   diff: string;
   skills: EffectiveSkills;
   soul?: string;
+  // Whether the target repo's own native skills (.claude/skills, etc.) are loaded
+  // by the AI provider in addition to mad-reviewer's curated skills. Default true.
+  loadRepoSkills?: boolean;
 }
 
 export interface AiAdapter {

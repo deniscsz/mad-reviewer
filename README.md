@@ -118,6 +118,8 @@ All configuration is via environment variables (parsed/validated in
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret |
 | `MAD_REVIEWER_ADAPTER` | | `claude` | AI adapter to use: `claude` or `opencode` |
 | `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` for `--model` (unset → opencode default) |
+| `MAD_REVIEWER_OPENCODE_CONFIG` | | `./opencode.review.json` | `opencode` only: trusted config defining the read-only `review` agent |
+| `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. Set `false` to ignore them |
 | `AI_TIMEOUT_MS` | | `300000` | Per-run AI CLI timeout (ms) |
 | `DEBOUNCE_MS` | | `15000` | Coalesce a burst of pushes before running (ms) |
 | `MAX_RETRIES` | | `3` | Retries before a job is marked failed |
@@ -137,13 +139,32 @@ it. They are resolved in three tiers:
    `security`, …).
 2. **`skills/auto-apply/`** — loaded only when a changed file matches the
    skill's `applies_to` globs (e.g. SQL rules for `**/*.sql`).
-3. **`.mad-reviewer/skills/`** in the reviewed repo — overrides a default of the
-   same name or adds a new one.
+3. **`.mad-reviewer/skills/`** in the reviewed repo — overrides an *auto-apply*
+   skill of the same name or adds a new one.
 
-`output-contract.md` defines the JSON output the adapter parses and **cannot be
-overridden**. Each finding must carry a stable `dedupeKey`
-(`<category>:<symbol>:<symptom>`) — this, not the line number, is what gives a
-bug its identity across runs.
+mad-reviewer's **defaults can never be overridden** by a repo (this includes
+`output-contract.md`, which defines the JSON the adapter parses). Each finding
+must carry a stable `dedupeKey` (`<category>:<symbol>:<symptom>`) — this, not the
+line number, is what gives a bug its identity across runs.
+
+### Your repo's own skills are honored too
+
+mad-reviewer runs the AI provider (`claude -p` / `opencode run`) **inside the PR
+checkout**, so the same agent skills your developers use day to day — the
+`.claude/skills/` (also `.agents/skills/`, `.opencode/skill/`) committed in the
+reviewed repo — are loaded **natively** by the provider and inform the review,
+exactly as they would on a developer's machine. No setup required; they must be
+in the standard `<skill-name>/SKILL.md` layout.
+
+These native skills *add* guidance on top of mad-reviewer's curated set but can
+never override the output contract or the curated rules. To ignore them entirely
+and review with only mad-reviewer's own skills (defaults + auto-apply +
+`.mad-reviewer/skills/`), set `MAD_REVIEWER_LOAD_REPO_SKILLS=false`.
+
+For safety, the reviewed repo's `.claude/settings.json`, `.mcp.json`, hooks and
+opencode plugins are **not** executed, and the clone's embedded GitHub token is
+stripped before the AI runs — an untrusted PR cannot run commands or exfiltrate
+credentials.
 
 > **Note on behavior:** when the agent auto-resolves a fixed bug it posts a
 > short reply (currently in Portuguese, e.g. *"Resolvido automaticamente nesta

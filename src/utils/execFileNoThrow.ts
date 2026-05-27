@@ -14,6 +14,7 @@ export interface ExecOpts {
   timeout?: number;
   maxBuffer?: number;
   input?: string;
+  env?: NodeJS.ProcessEnv;
 }
 
 export async function execFileNoThrow(
@@ -29,6 +30,7 @@ export async function execFileNoThrow(
       cwd: opts.cwd,
       timeout: opts.timeout,
       maxBuffer: opts.maxBuffer ?? 64 * 1024 * 1024,
+      env: opts.env,
     });
     return { stdout: stdout.toString(), stderr: stderr.toString(), status: 0 };
   } catch (err) {
@@ -49,7 +51,7 @@ function runWithStdin(
 ): Promise<ExecResult> {
   const maxBuffer = opts.maxBuffer ?? 64 * 1024 * 1024;
   return new Promise((resolve) => {
-    const child = spawn(file, args, { cwd: opts.cwd });
+    const child = spawn(file, args, { cwd: opts.cwd, env: opts.env });
     let stdout = "";
     let stderr = "";
     let timedOut = false;

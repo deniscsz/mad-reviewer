@@ -13,6 +13,8 @@ exit immediately with a validation error; numeric values are coerced.
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret (must match the App config) |
 | `MAD_REVIEWER_ADAPTER` | | `claude` | Which AI adapter to use: `claude` or `opencode`; see [Adapters](/architecture/adapters) |
 | `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` passed to `opencode run --model`. Unset → opencode's own default |
+| `MAD_REVIEWER_OPENCODE_CONFIG` | | `./opencode.review.json` | `opencode` only: path to the trusted config defining the read-only `review` agent |
+| `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. `false` ignores them; see [Skills](/guide/skills#your-repo-s-own-skills-native) |
 | `AI_TIMEOUT_MS` | | `300000` | Maximum time for one AI CLI invocation, in ms |
 | `DEBOUNCE_MS` | | `15000` | How long to coalesce a burst of pushes before running, in ms |
 | `MAX_RETRIES` | | `3` | Attempts before a job is marked `failed` |
@@ -40,6 +42,19 @@ exit immediately with a validation error; numeric values are coerced.
   Leave it unset to use whatever model opencode is configured with
   (`~/.config/opencode/opencode.json`); set it to pin one, e.g.
   `anthropic/claude-sonnet-4`.
+- **`MAD_REVIEWER_OPENCODE_CONFIG`** only applies when `MAD_REVIEWER_ADAPTER=opencode`.
+  It points at a trusted opencode config (shipped in the image as
+  `opencode.review.json`) that defines a read-only `review` agent (read + skill
+  allowed; bash/edit/webfetch/task denied). The adapter runs with
+  `OPENCODE_DISABLE_PROJECT_CONFIG=true` so the reviewed repo's own opencode
+  config/`AGENTS.md`/plugins cannot relax those restrictions.
+- **`MAD_REVIEWER_LOAD_REPO_SKILLS`** controls whether the reviewed repo's own
+  native skills are loaded by the AI provider in addition to mad-reviewer's
+  curated set. Default `true` — devs' day-to-day skills inform the review. Any
+  value other than the literal `false` keeps it on. When `false`, native skill
+  directories are stripped from the checkout and the provider is told not to load
+  them; `.mad-reviewer/skills/` is always kept. See
+  [Skills](/guide/skills#your-repo-s-own-skills-native).
 - **`SOUL_PATH`** points at the project-default persona file. A reviewed repo can
   override it with its own `.mad-reviewer/SOUL.md`. If neither exists, no persona is
   injected. See [Persona](/guide/soul).
@@ -57,6 +72,8 @@ GITHUB_WEBHOOK_SECRET=
 # AI adapter (claude | opencode)
 MAD_REVIEWER_ADAPTER=claude
 # MAD_REVIEWER_OPENCODE_MODEL=anthropic/claude-sonnet-4   # opencode only
+# MAD_REVIEWER_OPENCODE_CONFIG=./opencode.review.json     # opencode only
+# MAD_REVIEWER_LOAD_REPO_SKILLS=true                       # false → ignore the repo's own skills
 AI_TIMEOUT_MS=300000
 
 # Orchestration

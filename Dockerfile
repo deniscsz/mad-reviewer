@@ -13,6 +13,7 @@ RUN npm run build
 
 COPY skills ./skills
 COPY SOUL.md ./
+COPY opencode.review.json ./
 
 ENV SQLITE_PATH=/data/queue.db
 VOLUME ["/data"]

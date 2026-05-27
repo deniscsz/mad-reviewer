@@ -32,6 +32,26 @@ describe("loadConfig", () => {
     expect(loadConfig(base).opencodeModel).toBeUndefined();
   });
 
+  it("defaults opencodeConfig to ./opencode.review.json", () => {
+    expect(loadConfig(base).opencodeConfig).toBe("./opencode.review.json");
+  });
+
+  it("reads a custom MAD_REVIEWER_OPENCODE_CONFIG when set", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_OPENCODE_CONFIG: "/etc/oc.json" }).opencodeConfig).toBe("/etc/oc.json");
+  });
+
+  it("loads repo skills by default", () => {
+    expect(loadConfig(base).loadRepoSkills).toBe(true);
+  });
+
+  it("disables repo skills when MAD_REVIEWER_LOAD_REPO_SKILLS=false", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_LOAD_REPO_SKILLS: "false" }).loadRepoSkills).toBe(false);
+  });
+
+  it("treats any non-false MAD_REVIEWER_LOAD_REPO_SKILLS as enabled", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_LOAD_REPO_SKILLS: "true" }).loadRepoSkills).toBe(true);
+  });
+
   it("defaults soulPath to ./SOUL.md", () => {
     expect(loadConfig(base).soulPath).toBe("./SOUL.md");
   });

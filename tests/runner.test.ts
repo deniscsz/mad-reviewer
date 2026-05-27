@@ -18,7 +18,7 @@ function makeDeps(over: Partial<RunnerDeps> = {}): RunnerDeps {
     listActiveBotComments: vi.fn(async () => []),
     postInlineFinding: vi.fn(async () => {}),
     resolveWithReply: vi.fn(async () => {}),
-    config: { defaultsDir: "/d", autoApplyDir: "/a", soulPath: "/s" },
+    config: { defaultsDir: "/d", autoApplyDir: "/a", soulPath: "/s", loadRepoSkills: true },
     log: vi.fn(),
     ...over,
   };

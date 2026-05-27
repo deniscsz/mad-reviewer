@@ -6,6 +6,8 @@ const EnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: z.string().min(1),
   MAD_REVIEWER_ADAPTER: z.string().default("claude"),
   MAD_REVIEWER_OPENCODE_MODEL: z.string().min(1).optional(),
+  MAD_REVIEWER_OPENCODE_CONFIG: z.string().default("./opencode.review.json"),
+  MAD_REVIEWER_LOAD_REPO_SKILLS: z.string().default("true"),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
   DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(15000),
   MAX_RETRIES: z.coerce.number().int().positive().default(3),
@@ -23,6 +25,8 @@ export interface Config {
   webhookSecret: string;
   adapter: string;
   opencodeModel?: string;
+  opencodeConfig: string;
+  loadRepoSkills: boolean;
   aiTimeoutMs: number;
   debounceMs: number;
   maxRetries: number;
@@ -42,6 +46,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webhookSecret: e.GITHUB_WEBHOOK_SECRET,
     adapter: e.MAD_REVIEWER_ADAPTER,
     opencodeModel: e.MAD_REVIEWER_OPENCODE_MODEL,
+    opencodeConfig: e.MAD_REVIEWER_OPENCODE_CONFIG,
+    loadRepoSkills: e.MAD_REVIEWER_LOAD_REPO_SKILLS !== "false",
     aiTimeoutMs: e.AI_TIMEOUT_MS,
     debounceMs: e.DEBOUNCE_MS,
     maxRetries: e.MAX_RETRIES,

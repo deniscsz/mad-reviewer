@@ -30,6 +30,7 @@ const queue = new Queue(config.sqlitePath, config.debounceMs);
 const adapter = createAdapter(config.adapter, {
   timeoutMs: config.aiTimeoutMs,
   opencodeModel: config.opencodeModel,
+  opencodeConfig: config.opencodeConfig,
 });
 
 async function getClient(installationId: number): Promise<GitHubClient> {
@@ -56,7 +57,12 @@ async function runOne(qjob: QueueJob): Promise<void> {
     listActiveBotComments,
     postInlineFinding,
     resolveWithReply,
-    config: { defaultsDir: config.defaultsDir, autoApplyDir: config.autoApplyDir, soulPath: config.soulPath },
+    config: {
+      defaultsDir: config.defaultsDir,
+      autoApplyDir: config.autoApplyDir,
+      soulPath: config.soulPath,
+      loadRepoSkills: config.loadRepoSkills,
+    },
     log,
   });
 }

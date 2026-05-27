@@ -43,12 +43,12 @@ describe("loadSkills", () => {
     expect(eff.skills.map((s) => s.name).sort()).toEqual(["null-safety", "sql"]);
   });
 
-  it("lets a repo override a default skill of the same name", async () => {
+  it("does NOT let a repo override any default skill", async () => {
     await writeSkill(defaultsDir, "null-safety", "description: default", "default body");
     await writeSkill(path.join(workspaceDir, ".mad-reviewer", "skills"), "null-safety", "description: repo", "repo body");
     const eff = await loadSkills({ defaultsDir, autoApplyDir, workspaceDir, changedFiles: [] });
     const skill = eff.skills.find((s) => s.name === "null-safety");
-    expect(skill?.body.trim()).toBe("repo body");
+    expect(skill?.body.trim()).toBe("default body");
   });
 
   it("does NOT let a repo override output-contract", async () => {
@@ -57,6 +57,15 @@ describe("loadSkills", () => {
     const eff = await loadSkills({ defaultsDir, autoApplyDir, workspaceDir, changedFiles: [] });
     const skill = eff.skills.find((s) => s.name === "output-contract");
     expect(skill?.body.trim()).toBe("default contract");
+  });
+
+  it("lets a repo override an auto-apply skill of the same name", async () => {
+    await writeSkill(defaultsDir, "null-safety", "description: d", "d");
+    await writeSkill(autoApplyDir, "sql", 'description: sql\napplies_to:\n  - "**/*.sql"', "default sql");
+    await writeSkill(path.join(workspaceDir, ".mad-reviewer", "skills"), "sql", "description: repo", "repo sql");
+    const eff = await loadSkills({ defaultsDir, autoApplyDir, workspaceDir, changedFiles: ["db/001.sql"] });
+    const skill = eff.skills.find((s) => s.name === "sql");
+    expect(skill?.body.trim()).toBe("repo sql");
   });
 
   it("adds a brand-new repo skill", async () => {

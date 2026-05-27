@@ -3,7 +3,9 @@
 Skills are Markdown files that tell the AI **what to look for** and **how to
 report it**. They are the knobs you tune to make the reviewer match your team's
 standards. The agent assembles an *effective* set of skills for each PR from
-three tiers and writes them into the AI's working directory before the run.
+three tiers and inlines them into the AI prompt as the authoritative review
+rules. On top of that, the reviewed repo's **own native skills** are loaded
+directly by the AI provider — see [Your repo's own skills](#your-repo-s-own-skills-native).
 
 > Skills decide *what* gets flagged; [SOUL.md](/guide/soul) decides *how the
 > reviewer talks*. They are independent.
@@ -62,8 +64,9 @@ Bundled auto-apply skills:
 A reviewed repository can ship its own skills under `.mad-reviewer/skills/`.
 These are read from the cloned workspace (no extra API call) and:
 
-- a file with the **same name** as a default/auto-apply skill **replaces** it,
-- a new file is **added** to the set.
+- a file with the **same name** as an *auto-apply* skill **replaces** it,
+- a new file is **added** to the set,
+- a file with the **same name as a default is ignored** — defaults are locked.
 
 This lets each project layer in project-specific rules without changing the
 central deployment.
@@ -74,10 +77,45 @@ The effective set is built deterministically:
 
 1. Load everything from `defaults/`.
 2. Add the `auto-apply/` skills whose globs match the PR's changed files.
-3. Apply the repo overrides (same name replaces, new name adds).
+3. Apply the repo overrides (same name as an auto-apply skill replaces it, new
+   name adds; a name matching a **default** is dropped).
 
-One skill is **protected**: `output-contract` can never be overridden by a repo,
-guaranteeing the output format the adapter parses always exists.
+mad-reviewer's **defaults are protected**: no repo override can replace a skill
+that ships in `defaults/` (including `output-contract`). This guarantees the
+baseline checks — and the output format the adapter parses — always apply.
+
+## Your repo's own skills (native) {#your-repo-s-own-skills-native}
+
+mad-reviewer runs the AI provider **inside the PR checkout**, so the standard
+agent skills your developers already use are picked up **natively**, just like a
+local run:
+
+| Provider | Native skill locations loaded |
+|---|---|
+| `claude -p` | `<repo>/.claude/skills/<name>/SKILL.md` |
+| `opencode run` | `<repo>/.claude/skills/`, `.agents/skills/`, `.opencode/skill/` |
+
+They must use the standard **`<skill-name>/SKILL.md`** folder layout (the same
+format Claude Code / OpenCode use locally). They **add** guidance on top of the
+curated tiers above but can never override the output contract or the curated
+rules — the curated set is inlined into the prompt as authoritative.
+
+### Turning it off
+
+Set `MAD_REVIEWER_LOAD_REPO_SKILLS=false` to ignore the repo's native skills and
+review with **only** mad-reviewer's own set (defaults + auto-apply +
+`.mad-reviewer/skills/`). When disabled, the native skill directories are removed
+from the checkout before the run and the provider is told not to load them
+(`OPENCODE_DISABLE_EXTERNAL_SKILLS` for opencode); `.mad-reviewer/skills/` is
+always kept.
+
+### Safety
+
+The reviewed repo's `.claude/settings.json`, `.mcp.json`, hooks and opencode
+plugins are **never executed**, and the clone's embedded GitHub token is stripped
+before the AI runs. Skills are inert prompt text, but config/hooks/plugins could
+run code — so they are neutralized while skill discovery stays on. See
+[Adapters](/architecture/adapters) for the mechanics.
 
 ## The output contract
 

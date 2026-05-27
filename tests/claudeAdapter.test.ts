@@ -19,14 +19,18 @@ afterEach(async () => {
 });
 
 describe("ClaudeAdapter", () => {
-  it("installs skills into .claude/skills and parses findings from CLI output", async () => {
+  it("passes hardened flags, inlines skill rules, and parses findings", async () => {
     const finding = {
       file: "src/a.ts", line: 5, category: "null-safety",
       dedupeKey: "k", severity: "bug", title: "t", body: "b",
     };
-    const fakeRun = async () => ({
-      stdout: JSON.stringify({ result: JSON.stringify([finding]) }), stderr: "", status: 0,
-    });
+    let capturedArgs: string[] = [];
+    let capturedInput = "";
+    const fakeRun = async (_f: string, args: string[], opts: { input?: string }) => {
+      capturedArgs = args;
+      capturedInput = opts.input ?? "";
+      return { stdout: JSON.stringify({ result: JSON.stringify([finding]) }), stderr: "", status: 0 };
+    };
     const adapter = new ClaudeAdapter({ timeoutMs: 1000, run: fakeRun });
 
     const result = await adapter.review({
@@ -34,10 +38,16 @@ describe("ClaudeAdapter", () => {
     });
 
     expect(result).toEqual([finding]);
-    const written = await fs.readFile(
-      path.join(workspaceDir, ".claude", "skills", "null-safety.md"), "utf8",
-    );
-    expect(written).toContain("x");
+    expect(capturedArgs).toEqual([
+      "-p", "--output-format", "json",
+      "--permission-mode", "dontAsk",
+      "--allowedTools", "Read,Glob,Grep,Skill",
+    ]);
+    // curated skill body is inlined into the prompt (no .claude/skills files written)
+    expect(capturedInput).toContain("x");
+    await expect(
+      fs.access(path.join(workspaceDir, ".claude", "skills")),
+    ).rejects.toThrow();
   });
 
   it("throws when the CLI exits nonzero", async () => {
@@ -86,5 +96,20 @@ describe("ClaudeAdapter", () => {
     const adapter = new ClaudeAdapter({ timeoutMs: 1000, run: fakeRun });
     await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills });
     expect(captured).not.toContain("## Persona");
+  });
+
+  it("invites repo project skills by default but omits the line when disabled", async () => {
+    let captured = "";
+    const fakeRun = async (_f: string, _a: string[], opts: { input?: string }) => {
+      captured = opts.input ?? "";
+      return { stdout: JSON.stringify({ result: "[]" }), stderr: "", status: 0 };
+    };
+    const adapter = new ClaudeAdapter({ timeoutMs: 1000, run: fakeRun });
+
+    await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills });
+    expect(captured).toContain(".claude/skills");
+
+    await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills, loadRepoSkills: false });
+    expect(captured).not.toContain(".claude/skills");
   });
 });

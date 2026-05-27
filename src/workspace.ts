@@ -40,6 +40,9 @@ export async function clonePrHead(opts: {
     await git(dir, ["fetch", "-q", "--depth", "1", "origin", opts.headSha]);
     await git(dir, ["checkout", "-q", opts.headSha]);
     await git(dir, ["fetch", "-q", "--depth", "1", "origin", opts.baseSha]);
+    // Drop the credentialed remote so the embedded installation token cannot be
+    // read out of .git/config by anything running against the untrusted checkout.
+    await git(dir, ["remote", "remove", "origin"]);
   } catch (err) {
     await fs.rm(dir, { recursive: true, force: true });
     throw err;
@@ -50,6 +53,37 @@ export async function clonePrHead(opts: {
       await fs.rm(dir, { recursive: true, force: true });
     },
   };
+}
+
+// Remove config files from an untrusted checkout that the AI CLI would otherwise
+// auto-load and execute (hooks in settings, MCP servers). With loadRepoSkills the
+// target repo's own native skill directories are preserved so the AI provider picks
+// them up as it would on a developer's machine; when disabled they are removed so
+// only mad-reviewer's curated skills (incl. .mad-reviewer/skills) are considered.
+export async function sanitizeUntrustedConfig(
+  dir: string,
+  opts: { loadRepoSkills?: boolean } = {},
+): Promise<void> {
+  const targets = [
+    path.join(".claude", "settings.json"),
+    path.join(".claude", "settings.local.json"),
+    ".mcp.json",
+  ];
+  await Promise.all(
+    targets.map((rel) => fs.rm(path.join(dir, rel), { force: true })),
+  );
+
+  if (opts.loadRepoSkills === false) {
+    const skillDirs = [
+      path.join(".claude", "skills"),
+      path.join(".agents", "skills"),
+      path.join(".opencode", "skill"),
+      path.join(".opencode", "skills"),
+    ];
+    await Promise.all(
+      skillDirs.map((rel) => fs.rm(path.join(dir, rel), { recursive: true, force: true })),
+    );
+  }
 }
 
 export async function computeDiff(

@@ -15,8 +15,6 @@ export interface EffectiveSkills {
   skills: Skill[];
 }
 
-const PROTECTED = new Set(["output-contract"]);
-
 async function readSkillsDir(dir: string): Promise<Skill[]> {
   let entries: string[];
   try {
@@ -56,10 +54,15 @@ export async function loadSkills(opts: {
     path.join(opts.workspaceDir, ".mad-reviewer", "skills"),
   );
 
+  // mad-reviewer's curated defaults are the non-negotiable baseline: a target
+  // repo's .mad-reviewer/skills override can add or replace auto-apply skills but
+  // can never overwrite a default.
+  const protectedNames = new Set(defaults.map((s) => s.name));
+
   const byName = new Map<string, Skill>();
   for (const s of [...defaults, ...auto]) byName.set(s.name, s);
   for (const s of overrides) {
-    if (PROTECTED.has(s.name)) continue;
+    if (protectedNames.has(s.name)) continue;
     byName.set(s.name, s);
   }
   return { skills: [...byName.values()] };

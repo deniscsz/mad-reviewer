@@ -7,6 +7,8 @@ import type { EffectiveSkills } from "../src/skills/loader.js";
 
 let workspaceDir: string;
 
+const CONFIG = "/trusted/opencode.json";
+
 const skills: EffectiveSkills = {
   skills: [{ name: "null-safety", description: "", body: "x", raw: "---\n---\nrule-x" }],
 };
@@ -28,13 +30,13 @@ afterEach(async () => {
 });
 
 describe("OpenCodeAdapter", () => {
-  it("writes the diff, attaches it, passes the model, and parses findings", async () => {
-    let captured: { file: string; args: string[] } | undefined;
-    const fakeRun = async (file: string, args: string[]) => {
-      captured = { file, args };
+  it("writes the diff, attaches it, passes the agent/model/env, and parses findings", async () => {
+    let captured: { file: string; args: string[]; env?: NodeJS.ProcessEnv } | undefined;
+    const fakeRun = async (file: string, args: string[], opts: { env?: NodeJS.ProcessEnv }) => {
+      captured = { file, args, env: opts.env };
       return { stdout: jsonlText(JSON.stringify([finding])), stderr: "", status: 0 };
     };
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, model: "anthropic/claude-sonnet-4", run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG, model: "anthropic/claude-sonnet-4", run: fakeRun });
 
     const result = await adapter.review({
       workspaceDir, changedFiles: ["src/a.ts"], diff: "DIFF-CONTENT", skills,
@@ -46,12 +48,18 @@ describe("OpenCodeAdapter", () => {
     expect(await fs.readFile(diffPath, "utf8")).toBe("DIFF-CONTENT");
 
     expect(captured!.file).toBe("opencode");
-    expect(captured!.args.slice(0, 4)).toEqual(["run", "--format", "json", "-f"]);
+    expect(captured!.args.slice(0, 3)).toEqual(["run", "--format", "json"]);
+    expect(captured!.args).toContain("--agent");
+    expect(captured!.args).toContain("review");
+    expect(captured!.args).toContain("-f");
     expect(captured!.args).toContain(diffPath);
     expect(captured!.args).toContain("--model");
     expect(captured!.args).toContain("anthropic/claude-sonnet-4");
     // prompt is the last positional arg and carries the skill rules inline
     expect(captured!.args[captured!.args.length - 1]).toContain("rule-x");
+    // hardening env blocks untrusted repo config and points to the trusted agent config
+    expect(captured!.env?.OPENCODE_DISABLE_PROJECT_CONFIG).toBe("true");
+    expect(captured!.env?.OPENCODE_CONFIG).toBe(CONFIG);
   });
 
   it("omits --model when none is configured", async () => {
@@ -60,14 +68,14 @@ describe("OpenCodeAdapter", () => {
       captured = args;
       return { stdout: jsonlText(JSON.stringify([finding])), stderr: "", status: 0 };
     };
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills });
     expect(captured).not.toContain("--model");
   });
 
   it("throws when the CLI exits nonzero", async () => {
     const fakeRun = async () => ({ stdout: "", stderr: "boom", status: 1 });
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await expect(
       adapter.review({ workspaceDir, changedFiles: [], diff: "", skills }),
     ).rejects.toThrow(/exited with status 1/);
@@ -75,7 +83,7 @@ describe("OpenCodeAdapter", () => {
 
   it("throws when the assistant text has no findings JSON", async () => {
     const fakeRun = async () => ({ stdout: jsonlText("no json here"), stderr: "", status: 0 });
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await expect(
       adapter.review({ workspaceDir, changedFiles: [], diff: "", skills }),
     ).rejects.toThrow();
@@ -84,7 +92,7 @@ describe("OpenCodeAdapter", () => {
   it("rejects findings that violate the schema", async () => {
     const bad = [{ file: "a", line: 0, category: "c", dedupeKey: "k", severity: "bug", title: "t", body: "b" }];
     const fakeRun = async () => ({ stdout: jsonlText(JSON.stringify(bad)), stderr: "", status: 0 });
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await expect(
       adapter.review({ workspaceDir, changedFiles: [], diff: "", skills }),
     ).rejects.toThrow();
@@ -96,7 +104,7 @@ describe("OpenCodeAdapter", () => {
       captured = args;
       return { stdout: jsonlText("[]"), stderr: "", status: 0 };
     };
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills, soul: "BE SARCASTIC" });
     const prompt = captured[captured.length - 1];
     expect(prompt).toContain("## Persona");
@@ -109,8 +117,20 @@ describe("OpenCodeAdapter", () => {
       captured = args;
       return { stdout: jsonlText("[]"), stderr: "", status: 0 };
     };
-    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, run: fakeRun });
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG,run: fakeRun });
     await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills });
     expect(captured[captured.length - 1]).not.toContain("## Persona");
+  });
+
+  it("disables external skills via env and drops the prompt line when loadRepoSkills is false", async () => {
+    let captured: { args: string[]; env?: NodeJS.ProcessEnv } | undefined;
+    const fakeRun = async (_file: string, args: string[], opts: { env?: NodeJS.ProcessEnv }) => {
+      captured = { args, env: opts.env };
+      return { stdout: jsonlText("[]"), stderr: "", status: 0 };
+    };
+    const adapter = new OpenCodeAdapter({ timeoutMs: 1000, configPath: CONFIG, run: fakeRun });
+    await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills, loadRepoSkills: false });
+    expect(captured!.env?.OPENCODE_DISABLE_EXTERNAL_SKILLS).toBe("true");
+    expect(captured!.args[captured!.args.length - 1]).not.toContain("project skills");
   });
 });

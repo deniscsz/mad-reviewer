@@ -2,6 +2,7 @@ import type { Finding, Job } from "./types.js";
 import type { AiAdapter } from "./adapters/types.js";
 import type { GitHubClient } from "./github/comments.js";
 import type { Workspace } from "./workspace.js";
+import { sanitizeUntrustedConfig } from "./workspace.js";
 import type { EffectiveSkills } from "./skills/loader.js";
 import type { ActiveComment } from "./reconciler.js";
 import { reconcile } from "./reconciler.js";
@@ -34,7 +35,7 @@ export interface RunnerDeps {
     client: GitHubClient, owner: string, repo: string, pr: number,
     args: { commentId: number; threadId: string; commitSha: string },
   ): Promise<void>;
-  config: { defaultsDir: string; autoApplyDir: string; soulPath: string };
+  config: { defaultsDir: string; autoApplyDir: string; soulPath: string; loadRepoSkills: boolean };
   log: (event: Record<string, unknown>) => void;
 }
 
@@ -46,6 +47,7 @@ export async function runReview(job: Job, deps: RunnerDeps): Promise<RunSummary>
   });
 
   try {
+    await sanitizeUntrustedConfig(ws.dir, { loadRepoSkills: deps.config.loadRepoSkills });
     const { diff, changedFiles } = await deps.computeDiff(ws.dir, job.baseSha);
     const skills = await deps.loadSkills({
       defaultsDir: deps.config.defaultsDir,
@@ -54,7 +56,10 @@ export async function runReview(job: Job, deps: RunnerDeps): Promise<RunSummary>
       changedFiles,
     });
     const soul = await deps.loadSoul({ soulPath: deps.config.soulPath, workspaceDir: ws.dir });
-    const findings = await deps.adapter.review({ workspaceDir: ws.dir, changedFiles, diff, skills, soul });
+    const findings = await deps.adapter.review({
+      workspaceDir: ws.dir, changedFiles, diff, skills, soul,
+      loadRepoSkills: deps.config.loadRepoSkills,
+    });
     const current = findings.map((finding) => ({
       finding,
       fp: computeFingerprint({ file: finding.file, category: finding.category, dedupeKey: finding.dedupeKey }),

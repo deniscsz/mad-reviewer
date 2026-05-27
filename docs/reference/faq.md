@@ -49,9 +49,11 @@ when the PR touches matching files. See [Skills](/guide/skills).
 
 ## Can a specific repo customize the rules?
 
-Yes. Commit Markdown skills under `.mad-reviewer/skills/` in that repo to
-override a default of the same name or add new ones. `output-contract` cannot be
-overridden.
+Yes, two ways. Commit Markdown skills under `.mad-reviewer/skills/` in that repo
+to replace an *auto-apply* skill of the same name or add new ones — mad-reviewer's
+defaults (incl. `output-contract`) can never be overridden. The repo's own native
+skills (`.claude/skills/`, …) are also loaded by the AI provider unless
+`MAD_REVIEWER_LOAD_REPO_SKILLS=false`. See [Skills](/guide/skills).
 
 ## What happens if a run fails midway?
 
