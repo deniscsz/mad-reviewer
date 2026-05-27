@@ -31,6 +31,7 @@ const adapter = createAdapter(config.adapter, {
   timeoutMs: config.aiTimeoutMs,
   opencodeModel: config.opencodeModel,
   opencodeConfig: config.opencodeConfig,
+  cursorModel: config.cursorModel,
 });
 
 async function getClient(installationId: number): Promise<GitHubClient> {

@@ -53,8 +53,9 @@ Findings live in GitHub; SQLite holds only orchestration state.
 
 ## Features
 
-- **Configurable AI adapter** — `claude -p` (default) and `opencode run` ship
-  built in; the adapter interface is swappable (`cursor`, … are easy to add).
+- **Configurable AI adapter** — `claude -p` (default), `opencode run`, and
+  `cursor-agent -p` ship built in; the adapter interface is swappable (more are
+  easy to add).
 - **3-tier skills** — always-on defaults, glob-selected auto-apply skills, and
   per-repo overrides committed in the reviewed repo itself.
 - **Customizable persona (`SOUL.md`)** — tune the reviewer's voice (professional,
@@ -116,9 +117,10 @@ All configuration is via environment variables (parsed/validated in
 | `GITHUB_APP_ID` | ✅ | — | GitHub App ID |
 | `GITHUB_PRIVATE_KEY` | ✅ | — | GitHub App private key (PEM) |
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret |
-| `MAD_REVIEWER_ADAPTER` | | `claude` | AI adapter to use: `claude` or `opencode` |
+| `MAD_REVIEWER_ADAPTER` | | `claude` | AI adapter to use: `claude`, `opencode`, or `cursor` |
 | `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` for `--model` (unset → opencode default) |
 | `MAD_REVIEWER_OPENCODE_CONFIG` | | `./opencode.review.json` | `opencode` only: trusted config defining the read-only `review` agent |
+| `MAD_REVIEWER_CURSOR_MODEL` | | — | `cursor` only: model for `cursor-agent --model` (unset → Cursor default); needs `CURSOR_API_KEY` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. Set `false` to ignore them |
 | `AI_TIMEOUT_MS` | | `300000` | Per-run AI CLI timeout (ms) |
 | `DEBOUNCE_MS` | | `15000` | Coalesce a burst of pushes before running (ms) |
@@ -149,20 +151,22 @@ line number, is what gives a bug its identity across runs.
 
 ### Your repo's own skills are honored too
 
-mad-reviewer runs the AI provider (`claude -p` / `opencode run`) **inside the PR
-checkout**, so the same agent skills your developers use day to day — the
-`.claude/skills/` (also `.agents/skills/`, `.opencode/skill/`) committed in the
-reviewed repo — are loaded **natively** by the provider and inform the review,
-exactly as they would on a developer's machine. No setup required; they must be
-in the standard `<skill-name>/SKILL.md` layout.
+mad-reviewer runs the AI provider (`claude -p` / `opencode run` /
+`cursor-agent -p`) **inside the PR checkout**, so the same agent skills your
+developers use day to day — the `.claude/skills/` (also `.agents/skills/`,
+`.opencode/skill/`, `.cursor/rules/`) committed in the reviewed repo — are loaded
+**natively** by the provider and inform the review, exactly as they would on a
+developer's machine. No setup required; they must be in the standard
+`<skill-name>/SKILL.md` layout.
 
 These native skills *add* guidance on top of mad-reviewer's curated set but can
 never override the output contract or the curated rules. To ignore them entirely
 and review with only mad-reviewer's own skills (defaults + auto-apply +
 `.mad-reviewer/skills/`), set `MAD_REVIEWER_LOAD_REPO_SKILLS=false`.
 
-For safety, the reviewed repo's `.claude/settings.json`, `.mcp.json`, hooks and
-opencode plugins are **not** executed, and the clone's embedded GitHub token is
+For safety, the reviewed repo's `.claude/settings.json`, `.mcp.json`,
+`.cursor/mcp.json`, hooks and opencode plugins are **not** executed, and the
+clone's embedded GitHub token is
 stripped before the AI runs — an untrusted PR cannot run commands or exfiltrate
 credentials.
 
@@ -199,7 +203,7 @@ src/
   fingerprint.ts     # deterministic bug identity + comment marker
   reconciler.ts      # create / keep / resolve decision logic
   skills/            # loader (3-tier) + auto-apply glob selection
-  adapters/          # AiAdapter interface + claude & opencode adapters + parser
+  adapters/          # AiAdapter interface + claude, opencode & cursor adapters + parser
   github/comments.ts # list active bot comments, post inline, resolve thread
   queue/queue.ts     # SQLite orchestration queue
   workspace.ts       # clone PR head + diff (via safe subprocess wrapper)

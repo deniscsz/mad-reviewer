@@ -68,6 +68,7 @@ export async function sanitizeUntrustedConfig(
     path.join(".claude", "settings.json"),
     path.join(".claude", "settings.local.json"),
     ".mcp.json",
+    path.join(".cursor", "mcp.json"),
   ];
   await Promise.all(
     targets.map((rel) => fs.rm(path.join(dir, rel), { force: true })),
@@ -79,6 +80,8 @@ export async function sanitizeUntrustedConfig(
       path.join(".agents", "skills"),
       path.join(".opencode", "skill"),
       path.join(".opencode", "skills"),
+      path.join(".cursor", "rules"),
+      path.join(".cursor", "skills"),
     ];
     await Promise.all(
       skillDirs.map((rel) => fs.rm(path.join(dir, rel), { recursive: true, force: true })),

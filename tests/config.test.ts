@@ -40,6 +40,14 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...base, MAD_REVIEWER_OPENCODE_CONFIG: "/etc/oc.json" }).opencodeConfig).toBe("/etc/oc.json");
   });
 
+  it("reads the optional cursor model when set", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_CURSOR_MODEL: "sonnet-4" }).cursorModel).toBe("sonnet-4");
+  });
+
+  it("leaves cursorModel undefined when absent", () => {
+    expect(loadConfig(base).cursorModel).toBeUndefined();
+  });
+
   it("loads repo skills by default", () => {
     expect(loadConfig(base).loadRepoSkills).toBe(true);
   });

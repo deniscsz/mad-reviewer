@@ -11,9 +11,11 @@ exit immediately with a validation error; numeric values are coerced.
 | `GITHUB_APP_ID` | ✅ | — | GitHub App ID |
 | `GITHUB_PRIVATE_KEY` | ✅ | — | GitHub App private key (PEM, multi-line) |
 | `GITHUB_WEBHOOK_SECRET` | ✅ | — | Webhook HMAC secret (must match the App config) |
-| `MAD_REVIEWER_ADAPTER` | | `claude` | Which AI adapter to use: `claude` or `opencode`; see [Adapters](/architecture/adapters) |
+| `MAD_REVIEWER_ADAPTER` | | `claude` | Which AI adapter to use: `claude`, `opencode`, or `cursor`; see [Adapters](/architecture/adapters) |
 | `MAD_REVIEWER_OPENCODE_MODEL` | | — | `opencode` only: `provider/model` passed to `opencode run --model`. Unset → opencode's own default |
 | `MAD_REVIEWER_OPENCODE_CONFIG` | | `./opencode.review.json` | `opencode` only: path to the trusted config defining the read-only `review` agent |
+| `MAD_REVIEWER_CURSOR_MODEL` | | — | `cursor` only: model name passed to `cursor-agent --model` (e.g. `sonnet-4`, `gpt-5`). Unset → Cursor account default |
+| `CURSOR_API_KEY` | | — | `cursor` only: read directly by `cursor-agent` for auth (not parsed by mad-reviewer). Required when `MAD_REVIEWER_ADAPTER=cursor` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. `false` ignores them; see [Skills](/guide/skills#your-repo-s-own-skills-native) |
 | `AI_TIMEOUT_MS` | | `300000` | Maximum time for one AI CLI invocation, in ms |
 | `DEBOUNCE_MS` | | `15000` | How long to coalesce a burst of pushes before running, in ms |
@@ -48,6 +50,13 @@ exit immediately with a validation error; numeric values are coerced.
   allowed; bash/edit/webfetch/task denied). The adapter runs with
   `OPENCODE_DISABLE_PROJECT_CONFIG=true` so the reviewed repo's own opencode
   config/`AGENTS.md`/plugins cannot relax those restrictions.
+- **`MAD_REVIEWER_CURSOR_MODEL`** only applies when `MAD_REVIEWER_ADAPTER=cursor`.
+  Leave it unset to use the Cursor account's default model; set it to pin one,
+  e.g. `sonnet-4` or `gpt-5`. The `cursor` adapter needs `cursor-agent` installed
+  in the runtime and `CURSOR_API_KEY` set. Unlike Claude/OpenCode, Cursor's print
+  mode has no read-only tool flag; the adapter hardens it by running with
+  `--sandbox enabled`, never passing `--force`/`--yolo` (writes stay proposed-only),
+  and relying on the untrusted-checkout sanitization — see [Adapters](/architecture/adapters#the-cursor-adapter).
 - **`MAD_REVIEWER_LOAD_REPO_SKILLS`** controls whether the reviewed repo's own
   native skills are loaded by the AI provider in addition to mad-reviewer's
   curated set. Default `true` — devs' day-to-day skills inform the review. Any
@@ -69,10 +78,12 @@ GITHUB_APP_ID=
 GITHUB_PRIVATE_KEY=
 GITHUB_WEBHOOK_SECRET=
 
-# AI adapter (claude | opencode)
+# AI adapter (claude | opencode | cursor)
 MAD_REVIEWER_ADAPTER=claude
 # MAD_REVIEWER_OPENCODE_MODEL=anthropic/claude-sonnet-4   # opencode only
 # MAD_REVIEWER_OPENCODE_CONFIG=./opencode.review.json     # opencode only
+# MAD_REVIEWER_CURSOR_MODEL=sonnet-4                       # cursor only
+# CURSOR_API_KEY=                                          # cursor only (read by cursor-agent)
 # MAD_REVIEWER_LOAD_REPO_SKILLS=true                       # false → ignore the repo's own skills
 AI_TIMEOUT_MS=300000
 

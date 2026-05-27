@@ -23,7 +23,7 @@ interface AiAdapter {
 ```
 
 `createAdapter(name, opts)` is a factory keyed on `MAD_REVIEWER_ADAPTER`.
-`claude` and `opencode` are built in; unknown names throw.
+`claude`, `opencode`, and `cursor` are built in; unknown names throw.
 
 ## The Claude adapter
 
@@ -64,9 +64,10 @@ and the caller decides whether a non-zero status is fatal.
 
 ## Native repo skills & untrusted-checkout hardening
 
-Both adapters run the provider **inside the PR checkout**, so the reviewed repo's
-own agent skills are discovered natively (Claude: `.claude/skills/`; OpenCode:
-`.claude/skills/`, `.agents/skills/`, `.opencode/skill/`). This is gated by
+All adapters run the provider **inside the PR checkout**, so the reviewed repo's
+own agent skills/rules are discovered natively (Claude: `.claude/skills/`;
+OpenCode: `.claude/skills/`, `.agents/skills/`, `.opencode/skill/`; Cursor:
+`.cursor/rules/`, `.cursor/skills/`). This is gated by
 `ReviewInput.loadRepoSkills` (env `MAD_REVIEWER_LOAD_REPO_SKILLS`, default on).
 
 Because that checkout is **untrusted PR content**, three guards run regardless of
@@ -77,12 +78,16 @@ adapter:
    `.git/config` where a skill could read it. The diff is computed from local
    objects only.
 2. **Config neutralization.** `sanitizeUntrustedConfig` deletes
-   `.claude/settings.json`, `.claude/settings.local.json`, and `.mcp.json` from
-   the checkout — the auto-loaded vectors (hooks, MCP servers) that could execute
-   code. When `loadRepoSkills` is `false` it also removes the native skill
-   directories; `.mad-reviewer/skills/` is always preserved.
+   `.claude/settings.json`, `.claude/settings.local.json`, `.mcp.json`, and
+   `.cursor/mcp.json` from the checkout — the auto-loaded vectors (hooks, MCP
+   servers) that could execute code. When `loadRepoSkills` is `false` it also
+   removes the native skill/rule directories (incl. `.cursor/rules`,
+   `.cursor/skills`); `.mad-reviewer/skills/` is always preserved.
 3. **Tool restriction.** The Claude adapter's `--allowedTools` and the OpenCode
    `review` agent both permit only read + skill, never shell or file edits.
+   Cursor's print mode has **no** equivalent read-only flag, so the Cursor adapter
+   instead relies on `--sandbox enabled` + never passing `--force`/`--yolo` (writes
+   stay proposed-only) on top of guards 1–2 and the container boundary.
 
 Skills themselves are inert prompt text, so loading them is safe; only
 config/hooks/plugins can run code, and those are the things that get neutralized.
@@ -122,6 +127,31 @@ The model is opencode's own configured default unless
 `--model provider/model`. opencode must be installed **and** have a provider
 configured/authenticated in the runtime environment.
 
+## The Cursor adapter
+
+`CursorAdapter` drives Cursor's `cursor-agent` CLI in its non-interactive print
+mode. The shape mirrors the Claude adapter:
+
+1. **Prompt via stdin.** Like Claude, it inlines the curated skill rules, changed
+   files, and the full diff into one prompt and pipes it to the CLI's **stdin**
+   (avoiding `ARG_MAX`). The curated rules are inlined, never written to disk.
+2. **Hardened invocation.** It runs
+   `cursor-agent -p --output-format json --trust --sandbox enabled`
+   (plus `--model <name>` when `MAD_REVIEWER_CURSOR_MODEL` is set). `--trust`
+   makes the headless run non-interactive (no workspace-trust prompt). It
+   **never** passes `--force`/`--yolo`, so any file/shell action stays
+   proposed-only rather than auto-applied. Unlike Claude/OpenCode there is no
+   tool allowlist, so the safety rests on `--sandbox enabled`, the no-`--force`
+   posture, the untrusted-checkout guards above, and the container boundary.
+3. **JSON output parsing.** `--output-format json` emits a single result object
+   `{ "type":"result", "is_error":…, "result":"<assistant text>", … }` on
+   success. The adapter throws on a non-zero exit or `is_error`, then runs the
+   `result` text through the shared `extractFindingsJson` + `Finding[]` zod
+   schema. Malformed output throws — the run fails cleanly and nothing is posted.
+
+Auth is via the `CURSOR_API_KEY` env var, read directly by `cursor-agent`.
+`cursor-agent` must be installed in the runtime environment.
+
 ## Persona injection
 
 Both adapters accept an optional `soul` string on `ReviewInput`. When set, each
@@ -134,8 +164,8 @@ from `loadSoul` (project-default `SOUL_PATH`, overridable per repo at
 
 ## Adding a new adapter
 
-`cursor` or any other non-interactive tool can be added without touching the
-rest of the system:
+Any other non-interactive tool (as `claude`, `opencode`, and `cursor` already
+do) can be added without touching the rest of the system:
 
 1. Implement `AiAdapter` — invoke your CLI through `execFileNoThrow` and parse
    its output into validated `Finding[]` (reuse `extractFindingsJson` and

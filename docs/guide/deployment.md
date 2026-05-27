@@ -10,8 +10,9 @@ The runtime environment must provide:
 
 - **Node ≥ 22**
 - **git** on the `PATH` (clones PR heads)
-- The chosen **AI CLI** installed **and authenticated** — `claude` (default) or
-  `opencode` (needs a provider configured / API key); set via `MAD_REVIEWER_ADAPTER`
+- The chosen **AI CLI** installed **and authenticated** — `claude` (default),
+  `opencode` (needs a provider configured / API key), or `cursor`
+  (`cursor-agent` + `CURSOR_API_KEY`); set via `MAD_REVIEWER_ADAPTER`
 - A **persistent volume** for the SQLite queue (`SQLITE_PATH`)
 
 ## Docker
@@ -34,7 +35,11 @@ provide credentials via environment:
 
 ```dockerfile
 FROM mad-reviewer
-# install + configure your AI CLI here (e.g. claude), then it inherits CMD
+# install + configure your AI CLI here, then it inherits CMD.
+# e.g. for the cursor adapter:
+#   RUN curl https://cursor.com/install -fsS | bash
+#   ENV PATH="/root/.local/bin:${PATH}"
+# then set MAD_REVIEWER_ADAPTER=cursor and CURSOR_API_KEY at runtime.
 ```
 
 `SQLITE_PATH` defaults to `/data/queue.db` in the image and `/data` is declared

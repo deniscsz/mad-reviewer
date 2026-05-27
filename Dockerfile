@@ -19,6 +19,7 @@ ENV SQLITE_PATH=/data/queue.db
 VOLUME ["/data"]
 EXPOSE 3000
 
-# NOTE: install the chosen AI CLI (e.g. `claude`) into a derived image and
-# provide its credentials via env before this server can review.
+# NOTE: install the chosen AI CLI (`claude`, `opencode`, or `cursor-agent`) into
+# a derived image and provide its credentials via env before this server can
+# review. e.g. cursor: RUN curl https://cursor.com/install -fsS | bash + CURSOR_API_KEY.
 CMD ["node", "dist/index.js"]

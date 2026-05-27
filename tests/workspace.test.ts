@@ -29,6 +29,8 @@ describe("sanitizeUntrustedConfig", () => {
     await fs.writeFile(path.join(dir, ".claude", "settings.json"), "{}", "utf8");
     await fs.writeFile(path.join(dir, ".claude", "settings.local.json"), "{}", "utf8");
     await fs.writeFile(path.join(dir, ".mcp.json"), "{}", "utf8");
+    await fs.mkdir(path.join(dir, ".cursor"), { recursive: true });
+    await fs.writeFile(path.join(dir, ".cursor", "mcp.json"), "{}", "utf8");
     await fs.writeFile(path.join(dir, ".claude", "skills", "demo", "SKILL.md"), "rule", "utf8");
 
     await sanitizeUntrustedConfig(dir);
@@ -36,6 +38,7 @@ describe("sanitizeUntrustedConfig", () => {
     await expect(fs.access(path.join(dir, ".claude", "settings.json"))).rejects.toThrow();
     await expect(fs.access(path.join(dir, ".claude", "settings.local.json"))).rejects.toThrow();
     await expect(fs.access(path.join(dir, ".mcp.json"))).rejects.toThrow();
+    await expect(fs.access(path.join(dir, ".cursor", "mcp.json"))).rejects.toThrow();
     expect(await fs.readFile(path.join(dir, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toBe("rule");
   });
 
@@ -50,6 +53,10 @@ describe("sanitizeUntrustedConfig", () => {
     await fs.writeFile(path.join(dir, ".agents", "skills", "demo", "SKILL.md"), "x", "utf8");
     await fs.mkdir(path.join(dir, ".opencode", "skill", "demo"), { recursive: true });
     await fs.writeFile(path.join(dir, ".opencode", "skill", "demo", "SKILL.md"), "x", "utf8");
+    await fs.mkdir(path.join(dir, ".cursor", "rules"), { recursive: true });
+    await fs.writeFile(path.join(dir, ".cursor", "rules", "demo.mdc"), "x", "utf8");
+    await fs.mkdir(path.join(dir, ".cursor", "skills", "demo"), { recursive: true });
+    await fs.writeFile(path.join(dir, ".cursor", "skills", "demo", "SKILL.md"), "x", "utf8");
     await fs.mkdir(path.join(dir, ".mad-reviewer", "skills"), { recursive: true });
     await fs.writeFile(path.join(dir, ".mad-reviewer", "skills", "company.md"), "keep", "utf8");
 
@@ -58,6 +65,8 @@ describe("sanitizeUntrustedConfig", () => {
     await expect(fs.access(path.join(dir, ".claude", "skills"))).rejects.toThrow();
     await expect(fs.access(path.join(dir, ".agents", "skills"))).rejects.toThrow();
     await expect(fs.access(path.join(dir, ".opencode", "skill"))).rejects.toThrow();
+    await expect(fs.access(path.join(dir, ".cursor", "rules"))).rejects.toThrow();
+    await expect(fs.access(path.join(dir, ".cursor", "skills"))).rejects.toThrow();
     expect(await fs.readFile(path.join(dir, ".mad-reviewer", "skills", "company.md"), "utf8")).toBe("keep");
   });
 });
