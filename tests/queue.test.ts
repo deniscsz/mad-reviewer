@@ -86,4 +86,14 @@ describe("Queue", () => {
     expect(q.claimNext(0)).toBeNull();     // no longer pending
     q.close();
   });
+
+  it("fail() returns false while retrying and true once dead", () => {
+    const q = new Queue(dbPath, 0);
+    q.enqueue(job, 0);
+    let claimed = q.claimNext(0)!;
+    expect(q.fail(claimed, 2, 0)).toBe(false); // attempt 1 → pending
+    claimed = q.claimNext(0)!;
+    expect(q.fail(claimed, 2, 0)).toBe(true);  // attempt 2 → failed (dead)
+    q.close();
+  });
 });

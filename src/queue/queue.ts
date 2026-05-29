@@ -96,7 +96,7 @@ export class Queue {
     this.log({ event: "complete", repo: `${job.owner}/${job.repo}`, pr: job.pr, headSha: job.headSha });
   }
 
-  fail(job: QueueJob, maxRetries: number, now: number = Date.now()): void {
+  fail(job: QueueJob, maxRetries: number, now: number = Date.now()): boolean {
     const row = this.db
       .prepare(`SELECT attempts FROM jobs WHERE owner=? AND repo=? AND pr=?`)
       .get(job.owner, job.repo, job.pr) as { attempts: number } | undefined;
@@ -109,6 +109,7 @@ export class Queue {
       `)
       .run(status, attempts, now, now, job.owner, job.repo, job.pr);
     this.log({ event: status === "failed" ? "job_dead" : "retry", repo: `${job.owner}/${job.repo}`, pr: job.pr, attempts, maxRetries });
+    return status === "failed";
   }
 
   close(): void {
