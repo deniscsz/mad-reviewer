@@ -21,11 +21,17 @@ export class CursorAdapter implements AiAdapter {
     const prompt = buildPrompt(input);
     const log = input.log;
     const debug = input.debug === true;
-    // cursor-agent print mode has full tool access and no read-only flag.
-    // Hardening: never pass --force (writes stay gated by per-tool prompts that
-    // never get answered in print mode) and rely on the untrusted-checkout
-    // sanitization done before review().
-    const args = ["-p", "--output-format", "json"];
+    // cursor-agent print mode (-p) has full tool access (write + shell) and no
+    // read-only flag. Hardening for untrusted checkouts:
+    //   --trust            grant workspace trust non-interactively; required in
+    //                      headless mode or cursor-agent refuses with
+    //                      "Workspace Trust Required" and exits 1.
+    //   --sandbox enabled  OS-level confinement of file/exec side effects.
+    // We deliberately never pass --force / --yolo: without them the agent cannot
+    // auto-approve write/shell commands in headless mode, so they stay denied.
+    // The diff is inlined into the stdin prompt, so review works off the prompt
+    // even if the sandbox limits disk reads. Pre-review sanitization still runs.
+    const args = ["-p", "--output-format", "json", "--trust", "--sandbox", "enabled"];
     if (this.model) args.push("--model", this.model);
     if (debug && log) {
       log({ event: "ai_request", adapter: "cursor", model: this.model ?? null, workspaceDir: input.workspaceDir, args, promptBytes: prompt.length, prompt });

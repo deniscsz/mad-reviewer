@@ -39,10 +39,11 @@ describe("CursorAdapter", () => {
     });
 
     expect(result).toEqual([finding]);
-    expect(capturedArgs).toEqual(["-p", "--output-format", "json"]);
+    expect(capturedArgs).toEqual(["-p", "--output-format", "json", "--trust", "--sandbox", "enabled"]);
     // never auto-approve writes/shell on untrusted code
     expect(capturedArgs).not.toContain("--force");
     expect(capturedArgs).not.toContain("-f");
+    expect(capturedArgs).not.toContain("--yolo");
     // curated skill body + diff are inlined into the stdin prompt
     expect(capturedInput).toContain("x");
     expect(capturedInput).toContain("DIFF");
