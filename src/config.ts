@@ -10,6 +10,8 @@ const EnvSchema = z.object({
   MAD_REVIEWER_CURSOR_MODEL: z.string().min(1).optional(),
   MAD_REVIEWER_LOAD_REPO_SKILLS: z.string().default("true"),
   MAD_REVIEWER_DEBUG: z.string().default("false"),
+  MAD_REVIEWER_CHECKS: z.string().default("true"),
+  MAD_REVIEWER_CHECK_NAME: z.string().default("mad-reviewer"),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
   DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(15000),
   MAX_RETRIES: z.coerce.number().int().positive().default(3),
@@ -31,6 +33,8 @@ export interface Config {
   cursorModel?: string;
   loadRepoSkills: boolean;
   debug: boolean;
+  checksEnabled: boolean;
+  checkName: string;
   aiTimeoutMs: number;
   debounceMs: number;
   maxRetries: number;
@@ -54,6 +58,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cursorModel: e.MAD_REVIEWER_CURSOR_MODEL,
     loadRepoSkills: e.MAD_REVIEWER_LOAD_REPO_SKILLS !== "false",
     debug: e.MAD_REVIEWER_DEBUG === "true",
+    checksEnabled: e.MAD_REVIEWER_CHECKS !== "false",
+    checkName: e.MAD_REVIEWER_CHECK_NAME,
     aiTimeoutMs: e.AI_TIMEOUT_MS,
     debounceMs: e.DEBOUNCE_MS,
     maxRetries: e.MAX_RETRIES,

@@ -68,6 +68,26 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...base, SOUL_PATH: "/etc/soul.md" }).soulPath).toBe("/etc/soul.md");
   });
 
+  it("enables checks by default", () => {
+    expect(loadConfig(base).checksEnabled).toBe(true);
+  });
+
+  it("disables checks when MAD_REVIEWER_CHECKS=false", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_CHECKS: "false" }).checksEnabled).toBe(false);
+  });
+
+  it("treats any non-false MAD_REVIEWER_CHECKS as enabled", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_CHECKS: "true" }).checksEnabled).toBe(true);
+  });
+
+  it("defaults the check name to mad-reviewer", () => {
+    expect(loadConfig(base).checkName).toBe("mad-reviewer");
+  });
+
+  it("reads a custom MAD_REVIEWER_CHECK_NAME when set", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_CHECK_NAME: "ai-review" }).checkName).toBe("ai-review");
+  });
+
   it("throws when a required var is missing", () => {
     expect(() => loadConfig({ GITHUB_APP_ID: "1" })).toThrow();
   });
