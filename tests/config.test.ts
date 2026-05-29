@@ -48,6 +48,14 @@ describe("loadConfig", () => {
     expect(loadConfig(base).cursorModel).toBeUndefined();
   });
 
+  it("reads the optional codex model when set", () => {
+    expect(loadConfig({ ...base, MAD_REVIEWER_CODEX_MODEL: "gpt-5-codex" }).codexModel).toBe("gpt-5-codex");
+  });
+
+  it("leaves codexModel undefined when absent", () => {
+    expect(loadConfig(base).codexModel).toBeUndefined();
+  });
+
   it("loads repo skills by default", () => {
     expect(loadConfig(base).loadRepoSkills).toBe(true);
   });

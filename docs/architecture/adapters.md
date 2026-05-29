@@ -23,7 +23,7 @@ interface AiAdapter {
 ```
 
 `createAdapter(name, opts)` is a factory keyed on `MAD_REVIEWER_ADAPTER`.
-`claude`, `opencode`, and `cursor` are built in; unknown names throw.
+`claude`, `opencode`, `cursor`, and `codex` are built in; unknown names throw.
 
 ## The Claude adapter
 
@@ -67,7 +67,7 @@ and the caller decides whether a non-zero status is fatal.
 All adapters run the provider **inside the PR checkout**, so the reviewed repo's
 own agent skills/rules are discovered natively (Claude: `.claude/skills/`;
 OpenCode: `.claude/skills/`, `.agents/skills/`, `.opencode/skill/`; Cursor:
-`.cursor/rules/`, `.cursor/skills/`). This is gated by
+`.cursor/rules/`, `.cursor/skills/`; Codex: `AGENTS.md`). This is gated by
 `ReviewInput.loadRepoSkills` (env `MAD_REVIEWER_LOAD_REPO_SKILLS`, default on).
 
 Because that checkout is **untrusted PR content**, three guards run regardless of
@@ -155,10 +155,45 @@ mode. The shape mirrors the Claude adapter:
 Auth is via the `CURSOR_API_KEY` env var, read directly by `cursor-agent`.
 `cursor-agent` must be installed in the runtime environment.
 
-### Debug logging
+## The Codex adapter
 
-When `MAD_REVIEWER_DEBUG=true`, the Cursor adapter emits two structured events
-per run:
+`CodexAdapter` drives OpenAI's `codex` CLI in its non-interactive `codex exec`
+mode, which runs the agent once and exits. The shape mirrors the Claude/Cursor
+adapters:
+
+1. **Prompt via stdin.** Like Claude and Cursor, it inlines the curated skill
+   rules, changed files, and the full diff into one prompt and pipes it to the
+   CLI's **stdin** — passed as the `-` PROMPT positional (`codex exec … -`),
+   avoiding `ARG_MAX`. The curated rules are inlined, never written to disk.
+2. **Hardened invocation.** It runs
+   `codex exec --sandbox read-only -c approval_policy=never -`
+   (plus `--model <name>` when `MAD_REVIEWER_CODEX_MODEL` is set).
+   `--sandbox read-only` blocks all file writes and network access;
+   `-c approval_policy=never` means a headless run never blocks on an approval
+   prompt — escalations are denied and failures are returned to the model.
+   (`--ask-for-approval`/`-a` is a top-level flag, not an `exec` flag, so the
+   policy is set through the `-c` config override.) It **never** passes
+   `--sandbox workspace-write`/`danger-full-access` or
+   `--dangerously-bypass-approvals-and-sandbox`, so untrusted PR code cannot write
+   or run commands. Safety rests on the read-only sandbox, those omissions, the
+   untrusted-checkout guards above, and the container boundary.
+3. **Plain-stdout parsing.** With `--json` omitted, `codex exec` prints **only the
+   final agent message to stdout** (progress/logs go to stderr), so stdout is the
+   assistant text directly — no result envelope to unwrap. It runs straight
+   through the shared `extractFindingsJson` + `Finding[]` zod schema. A non-zero
+   exit or malformed output throws — the run fails cleanly and nothing is posted.
+
+Auth is via the `CODEX_API_KEY` env var, read directly by `codex exec` (a cached
+`codex login` credential also works). The `codex` CLI must be installed in the
+runtime environment (`npm install -g @openai/codex`). Codex auto-discovers the
+reviewed repo's `AGENTS.md` as project guidance; this is native CLI behavior and
+is **not** disabled by `MAD_REVIEWER_LOAD_REPO_SKILLS=false` (there is no flag to
+turn it off short of the file's absence).
+
+## Debug logging
+
+When `MAD_REVIEWER_DEBUG=true`, the Cursor and Codex adapters emit two structured
+events per run:
 
 - `ai_request` — fired just before invoking the CLI; includes `args`, the
   workspace directory, `promptBytes`, and the **full prompt** that is piped on
@@ -175,7 +210,7 @@ place, so adding them is a small follow-up.
 
 ## Persona injection
 
-Both adapters accept an optional `soul` string on `ReviewInput`. When set, each
+All adapters accept an optional `soul` string on `ReviewInput`. When set, each
 `buildPrompt` splices a `## Persona` block into the prompt — verbatim persona text
 wrapped in a guard that scopes it to the **voice and wording** of the findings
 (`title`/`body`) only, never the bug selection or the output-contract JSON. When
@@ -185,8 +220,8 @@ from `loadSoul` (project-default `SOUL_PATH`, overridable per repo at
 
 ## Adding a new adapter
 
-Any other non-interactive tool (as `claude`, `opencode`, and `cursor` already
-do) can be added without touching the rest of the system:
+Any other non-interactive tool (as `claude`, `opencode`, `cursor`, and `codex`
+already do) can be added without touching the rest of the system:
 
 1. Implement `AiAdapter` — invoke your CLI through `execFileNoThrow` and parse
    its output into validated `Finding[]` (reuse `extractFindingsJson` and

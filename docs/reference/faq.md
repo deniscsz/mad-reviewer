@@ -30,10 +30,10 @@ human-resolved threads are never modified.
 
 ## Can I use something other than Claude?
 
-Yes. The AI tool sits behind the `AiAdapter` interface. Two adapters ship built
-in — `claude` (default) and `opencode` — selectable with `MAD_REVIEWER_ADAPTER`.
-Adding `cursor` or another non-interactive CLI is a contained change — see
-[Adapters](/architecture/adapters).
+Yes. The AI tool sits behind the `AiAdapter` interface. Four adapters ship built
+in — `claude` (default), `opencode`, `cursor`, and `codex` — selectable with
+`MAD_REVIEWER_ADAPTER`. Adding another non-interactive CLI is a contained
+change — see [Adapters](/architecture/adapters).
 
 ## Can I change the reviewer's tone / how it talks?
 

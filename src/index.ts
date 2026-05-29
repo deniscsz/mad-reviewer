@@ -32,6 +32,7 @@ const adapter = createAdapter(config.adapter, {
   opencodeModel: config.opencodeModel,
   opencodeConfig: config.opencodeConfig,
   cursorModel: config.cursorModel,
+  codexModel: config.codexModel,
 });
 
 async function getClient(installationId: number): Promise<GitHubClient> {

@@ -94,9 +94,12 @@ local run:
 |---|---|
 | `claude -p` | `<repo>/.claude/skills/<name>/SKILL.md` |
 | `opencode run` | `<repo>/.claude/skills/`, `.agents/skills/`, `.opencode/skill/` |
+| `cursor-agent -p` | `<repo>/.cursor/rules/`, `.cursor/skills/` |
+| `codex exec` | `<repo>/AGENTS.md` (root + nested; Codex's native project guidance) |
 
-They must use the standard **`<skill-name>/SKILL.md`** folder layout (the same
-format Claude Code / OpenCode use locally). They **add** guidance on top of the
+Claude and OpenCode skills use the standard **`<skill-name>/SKILL.md`** folder
+layout (the same format those tools use locally); Cursor reads `.cursor/rules`
+and Codex reads a repo-root **`AGENTS.md`**. They **add** guidance on top of the
 curated tiers above but can never override the output contract or the curated
 rules — the curated set is inlined into the prompt as authoritative.
 

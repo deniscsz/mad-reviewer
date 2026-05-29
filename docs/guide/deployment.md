@@ -11,8 +11,9 @@ The runtime environment must provide:
 - **Node ≥ 22**
 - **git** on the `PATH` (clones PR heads)
 - The chosen **AI CLI** installed **and authenticated** — `claude` (default),
-  `opencode` (needs a provider configured / API key), or `cursor`
-  (`cursor-agent` + `CURSOR_API_KEY`); set via `MAD_REVIEWER_ADAPTER`
+  `opencode` (needs a provider configured / API key), `cursor`
+  (`cursor-agent` + `CURSOR_API_KEY`), or `codex`
+  (`codex` CLI + `CODEX_API_KEY`); set via `MAD_REVIEWER_ADAPTER`
 - A **persistent volume** for the SQLite queue (`SQLITE_PATH`)
 
 ## Docker
@@ -40,6 +41,9 @@ FROM mad-reviewer
 #   RUN curl https://cursor.com/install -fsS | bash
 #   ENV PATH="/root/.local/bin:${PATH}"
 # then set MAD_REVIEWER_ADAPTER=cursor and CURSOR_API_KEY at runtime.
+# e.g. for the codex adapter:
+#   RUN npm install -g @openai/codex
+# then set MAD_REVIEWER_ADAPTER=codex and CODEX_API_KEY at runtime.
 ```
 
 `SQLITE_PATH` defaults to `/data/queue.db` in the image and `/data` is declared
