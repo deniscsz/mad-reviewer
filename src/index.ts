@@ -26,7 +26,7 @@ const probot = new Probot({
   secret: config.webhookSecret,
 });
 
-const queue = new Queue(config.sqlitePath, config.debounceMs);
+const queue = new Queue(config.sqlitePath, config.debounceMs, log);
 const adapter = createAdapter(config.adapter, {
   timeoutMs: config.aiTimeoutMs,
   opencodeModel: config.opencodeModel,
@@ -63,25 +63,30 @@ async function runOne(qjob: QueueJob): Promise<void> {
       autoApplyDir: config.autoApplyDir,
       soulPath: config.soulPath,
       loadRepoSkills: config.loadRepoSkills,
+      debug: config.debug,
     },
     log,
   });
 }
 
-const appFn = (app: Probot) => registerWebhooks(app, queue);
+const appFn = (app: Probot) => registerWebhooks(app, queue, log);
 const middleware = createNodeMiddleware(appFn, { probot });
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
     return;
   }
-  void middleware(req, res);
+  const handled = await middleware(req, res);
+  if (!handled) {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "not_found" }));
+  }
 });
 
 server.listen(config.port, () => {
-  log({ event: "listening", port: config.port, adapter: config.adapter });
+  log({ event: "listening", port: config.port, adapter: config.adapter, debug: config.debug });
   const stopWorker = startWorker({ queue, runOne, maxRetries: config.maxRetries, log }, config.workerPollMs);
 
   const shutdown = (signal: string) => {

@@ -10,11 +10,16 @@ export interface WorkerDeps {
 export async function tick(deps: WorkerDeps): Promise<boolean> {
   const job = deps.queue.claimNext();
   if (!job) return false;
+  const repo = `${job.owner}/${job.repo}`;
+  const startedAt = Date.now();
+  deps.log({ event: "job_start", repo, pr: job.pr, headSha: job.headSha });
   try {
     await deps.runOne(job);
     deps.queue.complete(job);
+    deps.log({ event: "job_done", repo, pr: job.pr, headSha: job.headSha, durationMs: Date.now() - startedAt });
   } catch (err) {
-    deps.log({ level: "error", repo: `${job.owner}/${job.repo}`, pr: job.pr, error: String(err) });
+    const e = err as Error;
+    deps.log({ level: "error", event: "job_failed", repo, pr: job.pr, headSha: job.headSha, durationMs: Date.now() - startedAt, error: String(err), stack: e?.stack });
     deps.queue.fail(job, deps.maxRetries);
   }
   return true;

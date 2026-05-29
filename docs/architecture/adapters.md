@@ -86,8 +86,9 @@ adapter:
 3. **Tool restriction.** The Claude adapter's `--allowedTools` and the OpenCode
    `review` agent both permit only read + skill, never shell or file edits.
    Cursor's print mode has **no** equivalent read-only flag, so the Cursor adapter
-   instead relies on `--sandbox enabled` + never passing `--force`/`--yolo` (writes
-   stay proposed-only) on top of guards 1–2 and the container boundary.
+   instead relies on never passing `--force` — writes stay gated behind per-tool
+   prompts that print mode has no way to answer — on top of guards 1–2 and the
+   container boundary.
 
 Skills themselves are inert prompt text, so loading them is safe; only
 config/hooks/plugins can run code, and those are the things that get neutralized.
@@ -136,13 +137,15 @@ mode. The shape mirrors the Claude adapter:
    files, and the full diff into one prompt and pipes it to the CLI's **stdin**
    (avoiding `ARG_MAX`). The curated rules are inlined, never written to disk.
 2. **Hardened invocation.** It runs
-   `cursor-agent -p --output-format json --trust --sandbox enabled`
-   (plus `--model <name>` when `MAD_REVIEWER_CURSOR_MODEL` is set). `--trust`
-   makes the headless run non-interactive (no workspace-trust prompt). It
-   **never** passes `--force`/`--yolo`, so any file/shell action stays
-   proposed-only rather than auto-applied. Unlike Claude/OpenCode there is no
-   tool allowlist, so the safety rests on `--sandbox enabled`, the no-`--force`
-   posture, the untrusted-checkout guards above, and the container boundary.
+   `cursor-agent -p --output-format json`
+   (plus `--model <name>` when `MAD_REVIEWER_CURSOR_MODEL` is set). It
+   **never** passes `--force`, so any write/shell action stays gated behind a
+   per-tool confirmation prompt that print mode has no way to answer. Unlike
+   Claude/OpenCode there is no tool allowlist, so the safety rests on the
+   no-`--force` posture, the untrusted-checkout guards above, and the container
+   boundary. (Older revisions also passed `--trust --sandbox enabled`; those
+   flags were dropped because current `cursor-agent` builds no longer recognize
+   them and exit `1` with `unknown option`.)
 3. **JSON output parsing.** `--output-format json` emits a single result object
    `{ "type":"result", "is_error":…, "result":"<assistant text>", … }` on
    success. The adapter throws on a non-zero exit or `is_error`, then runs the
@@ -151,6 +154,24 @@ mode. The shape mirrors the Claude adapter:
 
 Auth is via the `CURSOR_API_KEY` env var, read directly by `cursor-agent`.
 `cursor-agent` must be installed in the runtime environment.
+
+### Debug logging
+
+When `MAD_REVIEWER_DEBUG=true`, the Cursor adapter emits two structured events
+per run:
+
+- `ai_request` — fired just before invoking the CLI; includes `args`, the
+  workspace directory, `promptBytes`, and the **full prompt** that is piped on
+  stdin.
+- `ai_response` — fired right after the CLI returns; includes `status` and
+  the **raw stdout/stderr**.
+
+This is the easiest way to see exactly what the model was given and how it
+replied — including the original JSON envelope before `extractFindingsJson`
+parses it. Keep the flag off in production: the prompt contains the diff and
+stdout contains the model output. The Claude and OpenCode adapters do not emit
+these events yet; the helper plumbing (`log` + `debug` on `ReviewInput`) is in
+place, so adding them is a small follow-up.
 
 ## Persona injection
 

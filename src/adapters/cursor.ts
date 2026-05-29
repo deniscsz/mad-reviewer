@@ -19,17 +19,26 @@ export class CursorAdapter implements AiAdapter {
 
   async review(input: ReviewInput): Promise<Finding[]> {
     const prompt = buildPrompt(input);
-    // cursor-agent print mode has full tool access and no read-only flag, so the
-    // hardening is: OS sandbox on, never pass --force/--yolo (writes stay gated),
-    // and rely on the untrusted-checkout sanitization done before review().
-    const args = ["-p", "--output-format", "json", "--trust", "--sandbox", "enabled"];
+    const log = input.log;
+    const debug = input.debug === true;
+    // cursor-agent print mode has full tool access and no read-only flag.
+    // Hardening: never pass --force (writes stay gated by per-tool prompts that
+    // never get answered in print mode) and rely on the untrusted-checkout
+    // sanitization done before review().
+    const args = ["-p", "--output-format", "json"];
     if (this.model) args.push("--model", this.model);
+    if (debug && log) {
+      log({ event: "ai_request", adapter: "cursor", model: this.model ?? null, workspaceDir: input.workspaceDir, args, promptBytes: prompt.length, prompt });
+    }
     const res = await this.run("cursor-agent", args, {
       cwd: input.workspaceDir,
       timeout: this.timeoutMs,
       maxBuffer: 64 * 1024 * 1024,
       input: prompt,
     });
+    if (debug && log) {
+      log({ event: "ai_response", adapter: "cursor", status: res.status, stdoutBytes: res.stdout.length, stderrBytes: res.stderr.length, stdout: res.stdout, stderr: res.stderr });
+    }
     if (res.status !== 0) {
       throw new Error(`cursor-agent exited with status ${res.status}: ${res.stderr}`);
     }

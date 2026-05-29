@@ -17,6 +17,7 @@ exit immediately with a validation error; numeric values are coerced.
 | `MAD_REVIEWER_CURSOR_MODEL` | | — | `cursor` only: model name passed to `cursor-agent --model` (e.g. `sonnet-4`, `gpt-5`). Unset → Cursor account default |
 | `CURSOR_API_KEY` | | — | `cursor` only: read directly by `cursor-agent` for auth (not parsed by mad-reviewer). Required when `MAD_REVIEWER_ADAPTER=cursor` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. `false` ignores them; see [Skills](/guide/skills#your-repo-s-own-skills-native) |
+| `MAD_REVIEWER_DEBUG` | | `false` | Verbose JSON logging. When `true`, the adapter emits `ai_request`/`ai_response` events with the full prompt and raw CLI output, and the runner logs `comment_keep`. See [Logging](#logging) |
 | `AI_TIMEOUT_MS` | | `300000` | Maximum time for one AI CLI invocation, in ms |
 | `DEBOUNCE_MS` | | `15000` | How long to coalesce a burst of pushes before running, in ms |
 | `MAX_RETRIES` | | `3` | Attempts before a job is marked `failed` |
@@ -54,9 +55,10 @@ exit immediately with a validation error; numeric values are coerced.
   Leave it unset to use the Cursor account's default model; set it to pin one,
   e.g. `sonnet-4` or `gpt-5`. The `cursor` adapter needs `cursor-agent` installed
   in the runtime and `CURSOR_API_KEY` set. Unlike Claude/OpenCode, Cursor's print
-  mode has no read-only tool flag; the adapter hardens it by running with
-  `--sandbox enabled`, never passing `--force`/`--yolo` (writes stay proposed-only),
-  and relying on the untrusted-checkout sanitization — see [Adapters](/architecture/adapters#the-cursor-adapter).
+  mode has no read-only tool flag; the adapter hardens it by never passing
+  `--force` (writes stay gated by per-tool prompts that print mode never
+  answers) and relying on the untrusted-checkout sanitization — see
+  [Adapters](/architecture/adapters#the-cursor-adapter).
 - **`MAD_REVIEWER_LOAD_REPO_SKILLS`** controls whether the reviewed repo's own
   native skills are loaded by the AI provider in addition to mad-reviewer's
   curated set. Default `true` — devs' day-to-day skills inform the review. Any
@@ -67,6 +69,61 @@ exit immediately with a validation error; numeric values are coerced.
 - **`SOUL_PATH`** points at the project-default persona file. A reviewed repo can
   override it with its own `.mad-reviewer/SOUL.md`. If neither exists, no persona is
   injected. See [Persona](/guide/soul).
+- **`MAD_REVIEWER_DEBUG`** turns on verbose logging — see [Logging](#logging) below.
+  Keep it `false` in production: the `ai_request` event embeds the entire prompt,
+  which contains the PR diff, and the `ai_response` event embeds the raw CLI
+  output. Both can leak source code into your log sink.
+
+## Logging
+
+mad-reviewer logs structured JSON lines to stdout. Every event is one line, ready
+to pipe through `jq`/`grep` or ship to your log collector.
+
+### Always-on events
+
+| Event | When | Useful fields |
+|---|---|---|
+| `listening` | Server booted | `port`, `adapter`, `debug` |
+| `shutdown` | SIGTERM/SIGINT received | `signal` |
+| `webhook` | PR event accepted | `action`, `repo`, `pr`, `headSha`, `installationId` |
+| `webhook_skipped` | PR event ignored | `reason` (e.g. `no_installation`) |
+| `enqueue` | Job added to the queue | `repo`, `pr`, `headSha`, `runAfter` |
+| `enqueue_skipped` | Same `headSha` already processed | `reason` |
+| `debounce_replace` | New push replaced a pending job for the same PR | `oldHeadSha`, `newHeadSha`, `runAfter` |
+| `claim` | Worker picked up a job | `repo`, `pr`, `headSha` |
+| `job_start` / `job_done` | Worker entered/finished a run | `durationMs` on `job_done` |
+| `complete` | Job marked idle, `last_processed_sha` updated | `repo`, `pr`, `headSha` |
+| `comment_create` / `comment_resolve` | Each GitHub action taken | `file`, `line`, `category`, `fp`, `commentId` |
+| Summary (no `event` field) | End of a run | `repo`, `pr`, `sha`, `findings`, `created`, `kept`, `resolved` |
+| `retry` / `job_dead` | Job failed and is being retried or has exhausted `MAX_RETRIES` | `attempts`, `maxRetries` |
+| `job_failed` | Run threw — logged with `level:"error"` | `error`, `stack`, `durationMs` |
+
+### Debug-only events (`MAD_REVIEWER_DEBUG=true`)
+
+| Event | When | Fields |
+|---|---|---|
+| `ai_request` | Just before invoking the AI CLI | `adapter`, `model`, `workspaceDir`, `args`, `promptBytes`, `prompt` |
+| `ai_response` | Right after the AI CLI returns | `status`, `stdoutBytes`, `stderrBytes`, `stdout`, `stderr` |
+| `comment_keep` | A finding already had an active comment | `repo`, `pr`, `fp` |
+
+Currently emitted by the **cursor** adapter; the claude/opencode adapters will be
+extended next.
+
+### Filtering examples
+
+```bash
+# follow everything, with timestamps
+npm run dev 2>&1 | tee mad-reviewer.log
+
+# only the structured app events
+npm run dev 2>&1 | jq -c 'select(.event)'
+
+# only the CLI invocation pair (needs MAD_REVIEWER_DEBUG=true)
+npm run dev 2>&1 | jq -c 'select(.event=="ai_request" or .event=="ai_response")'
+
+# only failures
+npm run dev 2>&1 | jq -c 'select(.level=="error")'
+```
 
 ## Example
 
@@ -85,6 +142,7 @@ MAD_REVIEWER_ADAPTER=claude
 # MAD_REVIEWER_CURSOR_MODEL=sonnet-4                       # cursor only
 # CURSOR_API_KEY=                                          # cursor only (read by cursor-agent)
 # MAD_REVIEWER_LOAD_REPO_SKILLS=true                       # false → ignore the repo's own skills
+# MAD_REVIEWER_DEBUG=false                                  # true → log full AI prompt & raw CLI output
 AI_TIMEOUT_MS=300000
 
 # Orchestration

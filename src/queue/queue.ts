@@ -9,10 +9,14 @@ export interface QueueJob {
   installationId: number;
 }
 
+export type LogFn = (event: Record<string, unknown>) => void;
+
 export class Queue {
   private db: Database.Database;
+  private log: LogFn;
 
-  constructor(dbPath: string, private debounceMs: number) {
+  constructor(dbPath: string, private debounceMs: number, log: LogFn = () => {}) {
+    this.log = log;
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.exec(`
@@ -37,11 +41,16 @@ export class Queue {
   }
 
   enqueue(job: QueueJob, now: number = Date.now()): boolean {
-    const row = this.db
-      .prepare(`SELECT last_processed_sha AS lps FROM jobs WHERE owner=? AND repo=? AND pr=?`)
-      .get(job.owner, job.repo, job.pr) as { lps: string | null } | undefined;
-    if (row && row.lps === job.headSha) return false;
+    const repo = `${job.owner}/${job.repo}`;
+    const existing = this.db
+      .prepare(`SELECT last_processed_sha AS lps, head_sha AS prevHead, status FROM jobs WHERE owner=? AND repo=? AND pr=?`)
+      .get(job.owner, job.repo, job.pr) as { lps: string | null; prevHead: string; status: string } | undefined;
+    if (existing && existing.lps === job.headSha) {
+      this.log({ event: "enqueue_skipped", reason: "already_processed", repo, pr: job.pr, headSha: job.headSha });
+      return false;
+    }
 
+    const runAfter = now + this.debounceMs;
     this.db
       .prepare(`
         INSERT INTO jobs (owner, repo, pr, head_sha, base_sha, installation_id, status, run_after, attempts, updated_at)
@@ -50,7 +59,12 @@ export class Queue {
           head_sha=@headSha, base_sha=@baseSha, installation_id=@installationId,
           status='pending', run_after=@runAfter, attempts=0, updated_at=@now
       `)
-      .run({ ...job, runAfter: now + this.debounceMs, now });
+      .run({ ...job, runAfter, now });
+    if (existing && existing.prevHead !== job.headSha && existing.status === "pending") {
+      this.log({ event: "debounce_replace", repo, pr: job.pr, oldHeadSha: existing.prevHead, newHeadSha: job.headSha, runAfter });
+    } else {
+      this.log({ event: "enqueue", repo, pr: job.pr, headSha: job.headSha, runAfter });
+    }
     return true;
   }
 
@@ -68,6 +82,7 @@ export class Queue {
     this.db
       .prepare(`UPDATE jobs SET status='running', updated_at=? WHERE owner=? AND repo=? AND pr=?`)
       .run(now, row.owner, row.repo, row.pr);
+    this.log({ event: "claim", repo: `${row.owner}/${row.repo}`, pr: row.pr, headSha: row.headSha });
     return row;
   }
 
@@ -78,6 +93,7 @@ export class Queue {
         WHERE owner=? AND repo=? AND pr=?
       `)
       .run(job.headSha, now, job.owner, job.repo, job.pr);
+    this.log({ event: "complete", repo: `${job.owner}/${job.repo}`, pr: job.pr, headSha: job.headSha });
   }
 
   fail(job: QueueJob, maxRetries: number, now: number = Date.now()): void {
@@ -92,6 +108,7 @@ export class Queue {
         WHERE owner=? AND repo=? AND pr=?
       `)
       .run(status, attempts, now, now, job.owner, job.repo, job.pr);
+    this.log({ event: status === "failed" ? "job_dead" : "retry", repo: `${job.owner}/${job.repo}`, pr: job.pr, attempts, maxRetries });
   }
 
   close(): void {

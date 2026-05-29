@@ -39,12 +39,10 @@ describe("CursorAdapter", () => {
     });
 
     expect(result).toEqual([finding]);
-    expect(capturedArgs).toEqual([
-      "-p", "--output-format", "json", "--trust", "--sandbox", "enabled",
-    ]);
+    expect(capturedArgs).toEqual(["-p", "--output-format", "json"]);
     // never auto-approve writes/shell on untrusted code
     expect(capturedArgs).not.toContain("--force");
-    expect(capturedArgs).not.toContain("--yolo");
+    expect(capturedArgs).not.toContain("-f");
     // curated skill body + diff are inlined into the stdin prompt
     expect(capturedInput).toContain("x");
     expect(capturedInput).toContain("DIFF");
@@ -144,5 +142,34 @@ describe("CursorAdapter", () => {
 
     await adapter.review({ workspaceDir, changedFiles: [], diff: "", skills, loadRepoSkills: false });
     expect(captured).not.toContain(".cursor/rules");
+  });
+
+  it("emits ai_request and ai_response when debug=true", async () => {
+    const events: Record<string, unknown>[] = [];
+    const fakeRun = async () => ({ stdout: JSON.stringify({ result: "[]" }), stderr: "warn x", status: 0 });
+    const adapter = new CursorAdapter({ timeoutMs: 1000, run: fakeRun });
+    await adapter.review({
+      workspaceDir, changedFiles: ["a.ts"], diff: "DIFF", skills,
+      debug: true, log: (e) => events.push(e),
+    });
+    const req = events.find((e) => e.event === "ai_request");
+    const resp = events.find((e) => e.event === "ai_response");
+    expect(req).toBeDefined();
+    expect(req).toMatchObject({ adapter: "cursor", workspaceDir });
+    expect(typeof req?.prompt).toBe("string");
+    expect((req?.prompt as string)).toContain("DIFF");
+    expect(resp).toBeDefined();
+    expect(resp).toMatchObject({ adapter: "cursor", status: 0, stderr: "warn x" });
+  });
+
+  it("emits no log events when debug is unset (default)", async () => {
+    const events: Record<string, unknown>[] = [];
+    const fakeRun = async () => ({ stdout: JSON.stringify({ result: "[]" }), stderr: "", status: 0 });
+    const adapter = new CursorAdapter({ timeoutMs: 1000, run: fakeRun });
+    await adapter.review({
+      workspaceDir, changedFiles: [], diff: "", skills,
+      log: (e) => events.push(e),
+    });
+    expect(events).toHaveLength(0);
   });
 });

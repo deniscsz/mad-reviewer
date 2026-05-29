@@ -90,11 +90,31 @@ npm run build
 npm start          # or: npm run dev
 ```
 
-Health check: `GET /health` → `{"status":"ok"}`.
+Health check: `GET /health` → `{"status":"ok"}`. Any other path returns
+`404 {"error":"not_found"}`; webhooks live at `POST /api/github/webhooks`.
 
 > **Requirements:** Node ≥ 22, `git` on the PATH, a configured **GitHub App**,
 > and the chosen **AI CLI** (default `claude`) installed and authenticated in
 > the runtime environment.
+>
+> The `.env` file is loaded by Node 22's native `--env-file` flag (already wired
+> into the `dev`/`start` scripts). No `dotenv` dependency.
+
+### Running locally against a real GitHub org
+
+GitHub webhooks need a public URL. For local development, tunnel through
+[smee.io](https://smee.io):
+
+```bash
+# in one terminal
+npx smee-client --url https://smee.io/<channel> --target http://localhost:3000/api/github/webhooks
+
+# in another terminal
+npm run dev
+```
+
+Set the GitHub App's **Webhook URL** to `https://smee.io/<channel>`. The smee
+client forwards every delivery to `localhost:3000/api/github/webhooks`.
 
 ## GitHub App setup
 
@@ -122,6 +142,7 @@ All configuration is via environment variables (parsed/validated in
 | `MAD_REVIEWER_OPENCODE_CONFIG` | | `./opencode.review.json` | `opencode` only: trusted config defining the read-only `review` agent |
 | `MAD_REVIEWER_CURSOR_MODEL` | | — | `cursor` only: model for `cursor-agent --model` (unset → Cursor default); needs `CURSOR_API_KEY` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. Set `false` to ignore them |
+| `MAD_REVIEWER_DEBUG` | | `false` | Verbose logging: emit full AI prompt + raw CLI output. Dev-only — may leak diff content |
 | `AI_TIMEOUT_MS` | | `300000` | Per-run AI CLI timeout (ms) |
 | `DEBOUNCE_MS` | | `15000` | Coalesce a burst of pushes before running (ms) |
 | `MAX_RETRIES` | | `3` | Retries before a job is marked failed |
@@ -184,6 +205,43 @@ each reviewed repo can override it with its own `.mad-reviewer/SOUL.md`. The per
 shapes only the wording of findings; it never changes which bugs are reported or the
 JSON output contract. Full guide:
 **https://deniscsz.github.io/mad-reviewer/guide/soul**.
+
+## Logging & debugging
+
+Every meaningful step emits one JSON line on stdout:
+
+```
+{"event":"webhook","action":"synchronize","repo":"acme/api","pr":42,"headSha":"abc1234","installationId":7}
+{"event":"enqueue","repo":"acme/api","pr":42,"headSha":"abc1234","runAfter":1737000015000}
+{"event":"claim","repo":"acme/api","pr":42,"headSha":"abc1234"}
+{"event":"job_start","repo":"acme/api","pr":42,"headSha":"abc1234"}
+{"event":"comment_create","repo":"acme/api","pr":42,"file":"src/x.ts","line":12,"category":"null-safety","fp":"…"}
+{"repo":"acme/api","pr":42,"sha":"abc1234","findings":3,"created":3,"kept":0,"resolved":0}
+{"event":"job_done","repo":"acme/api","pr":42,"headSha":"abc1234","durationMs":4271}
+{"event":"complete","repo":"acme/api","pr":42,"headSha":"abc1234"}
+```
+
+Set `MAD_REVIEWER_DEBUG=true` to also emit the full prompt and raw CLI output
+on every AI run:
+
+```
+{"event":"ai_request","adapter":"cursor","model":"sonnet-4","args":["-p","--output-format","json"],"promptBytes":12834,"prompt":"…"}
+{"event":"ai_response","adapter":"cursor","status":0,"stdoutBytes":4831,"stderrBytes":0,"stdout":"…","stderr":""}
+```
+
+> Debug logging embeds the PR diff in `prompt` and the raw model output in
+> `stdout`. Keep it **off** in production unless your log sink can hold source
+> code safely.
+
+Filter examples (any `jq`-capable shell):
+
+```bash
+npm run dev 2>&1 | jq -c 'select(.event=="ai_response")'
+npm run dev 2>&1 | jq -c 'select(.level=="error")'
+```
+
+See [Configuration → Logging](https://deniscsz.github.io/mad-reviewer/guide/configuration#logging)
+for the full event catalogue.
 
 ## Docker
 

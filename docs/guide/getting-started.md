@@ -45,6 +45,45 @@ At minimum you must set `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`, and
 `GITHUB_WEBHOOK_SECRET`. Everything else has sensible defaults — see
 [Configuration](/guide/configuration) for the full list.
 
+## Making your local server reachable from GitHub
+
+GitHub webhooks need a public URL — they cannot reach `localhost:3000`. The
+project's HTTP server only routes three things:
+
+| Method + Path | Behavior |
+|---|---|
+| `GET /health` | Health probe |
+| `POST /api/github/webhooks` | Probot middleware (webhooks land here) |
+| Anything else | `404 {"error":"not_found"}` |
+
+The simplest dev setup is [smee.io](https://smee.io), the channel relay
+recommended by the Probot project:
+
+```bash
+# in one terminal — bridges public smee channel to the local webhook path
+npx smee-client --url https://smee.io/<channel> --target http://localhost:3000/api/github/webhooks
+
+# in another terminal — boots the server (loads .env via Node 22 --env-file)
+npm run dev
+```
+
+Set the GitHub App's **Webhook URL** to `https://smee.io/<channel>`. Every
+delivery now flows `GitHub → smee.io → smee-client → localhost`. The smee UI
+shows each payload, and the GitHub App's **Advanced** tab has a *Redeliver*
+button — invaluable when debugging.
+
+Alternatives: `cloudflared tunnel --url http://localhost:3000` or `ngrok` —
+both give you a public HTTPS URL pointing at your laptop. For production
+deployment see [Deployment](/guide/deployment).
+
+## Watching what the server is doing
+
+mad-reviewer logs one structured JSON line per event on stdout — the chain
+`webhook → enqueue → claim → job_start → comment_create … → job_done` is
+visible end-to-end with no extra setup. To see the full AI prompt and raw CLI
+output, set `MAD_REVIEWER_DEBUG=true` in `.env` and restart. Full event
+catalogue: [Configuration → Logging](/guide/configuration#logging).
+
 ## What happens on a PR
 
 Once the App is installed and your server is reachable from GitHub:

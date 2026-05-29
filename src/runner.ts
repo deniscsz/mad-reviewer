@@ -35,7 +35,7 @@ export interface RunnerDeps {
     client: GitHubClient, owner: string, repo: string, pr: number,
     args: { commentId: number; threadId: string; commitSha: string },
   ): Promise<void>;
-  config: { defaultsDir: string; autoApplyDir: string; soulPath: string; loadRepoSkills: boolean };
+  config: { defaultsDir: string; autoApplyDir: string; soulPath: string; loadRepoSkills: boolean; debug: boolean };
   log: (event: Record<string, unknown>) => void;
 }
 
@@ -59,6 +59,8 @@ export async function runReview(job: Job, deps: RunnerDeps): Promise<RunSummary>
     const findings = await deps.adapter.review({
       workspaceDir: ws.dir, changedFiles, diff, skills, soul,
       loadRepoSkills: deps.config.loadRepoSkills,
+      debug: deps.config.debug,
+      log: deps.log,
     });
     const current = findings.map((finding) => ({
       finding,
@@ -67,17 +69,21 @@ export async function runReview(job: Job, deps: RunnerDeps): Promise<RunSummary>
     const active = await deps.listActiveBotComments(client, job.owner, job.repo, job.pr);
     const actions = reconcile(current, active);
 
+    const repo = `${job.owner}/${job.repo}`;
     let created = 0, kept = 0, resolved = 0;
     for (const action of actions) {
       if (action.type === "create") {
         await deps.postInlineFinding(client, job.owner, job.repo, job.pr, job.headSha, action.finding, action.fp);
+        deps.log({ event: "comment_create", repo, pr: job.pr, file: action.finding.file, line: action.finding.line, category: action.finding.category, fp: action.fp });
         created++;
       } else if (action.type === "keep") {
+        if (deps.config.debug) deps.log({ event: "comment_keep", repo, pr: job.pr, fp: action.fp });
         kept++;
       } else {
         await deps.resolveWithReply(client, job.owner, job.repo, job.pr, {
           commentId: action.commentId, threadId: action.threadId, commitSha: job.headSha,
         });
+        deps.log({ event: "comment_resolve", repo, pr: job.pr, commentId: action.commentId, fp: action.fp });
         resolved++;
       }
     }
