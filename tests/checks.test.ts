@@ -90,3 +90,58 @@ describe("finishCheckRun", () => {
     );
   });
 });
+
+import { createCheckReporter } from "../src/github/checks.js";
+
+const qjob = { owner: "o", repo: "r", pr: 1, headSha: "h", baseSha: "b", installationId: 5 };
+
+describe("createCheckReporter", () => {
+  it("starts a check and logs check_create", async () => {
+    const client = fakeClient();
+    const log = vi.fn();
+    const reporter = createCheckReporter({ getClient: async () => client, name: "mad-reviewer", meta: { adapter: "claude" }, log });
+    const id = await reporter.start(qjob as any);
+    expect(id).toBe(999);
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "check_create", checkRunId: 999 }));
+  });
+
+  it("returns null and logs check_error when start throws (fail-soft)", async () => {
+    const log = vi.fn();
+    const reporter = createCheckReporter({
+      getClient: async () => { throw new Error("403"); },
+      name: "mad-reviewer", meta: { adapter: "claude" }, log,
+    });
+    const id = await reporter.start(qjob as any);
+    expect(id).toBeNull();
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "check_error", phase: "start" }));
+  });
+
+  it("finishes success with the derived conclusion and logs check_complete", async () => {
+    const client = fakeClient();
+    const log = vi.fn();
+    const reporter = createCheckReporter({ getClient: async () => client, name: "mad-reviewer", meta: { adapter: "claude" }, log });
+    await reporter.finishSuccess(7, qjob as any, { created: 0, kept: 1, resolved: 0 });
+    expect(client.rest.checks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ check_run_id: 7, status: "completed", conclusion: "neutral" }),
+    );
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "check_complete", conclusion: "neutral", open: 1 }));
+  });
+
+  it("finishes failure with conclusion failure", async () => {
+    const client = fakeClient();
+    const log = vi.fn();
+    const reporter = createCheckReporter({ getClient: async () => client, name: "mad-reviewer", meta: { adapter: "claude" }, log });
+    await reporter.finishFailure(7, qjob as any, new Error("boom"));
+    expect(client.rest.checks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ check_run_id: 7, status: "completed", conclusion: "failure" }),
+    );
+  });
+
+  it("swallows errors during finish (fail-soft)", async () => {
+    const client = fakeClient({ update: vi.fn(async () => { throw new Error("down"); }) });
+    const log = vi.fn();
+    const reporter = createCheckReporter({ getClient: async () => client, name: "mad-reviewer", meta: { adapter: "claude" }, log });
+    await expect(reporter.finishSuccess(7, qjob as any, { created: 0, kept: 0, resolved: 0 })).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "check_error", phase: "finish" }));
+  });
+});

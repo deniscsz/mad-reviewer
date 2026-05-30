@@ -1,5 +1,6 @@
 import type { RunSummary } from "../runner.js";
 import type { GitHubClient } from "./comments.js";
+import type { QueueJob } from "../queue/queue.js";
 
 export interface CheckMeta {
   adapter: string;
@@ -46,10 +47,11 @@ export async function startCheckRun(
   });
   const runs = existing.data.check_runs ?? [];
   if (runs.length > 0) {
+    const run = runs[0]!;
     await client.rest.checks.update({
-      owner: opts.owner, repo: opts.repo, check_run_id: runs[0].id, status: "in_progress",
+      owner: opts.owner, repo: opts.repo, check_run_id: run.id, status: "in_progress",
     });
-    return runs[0].id;
+    return run.id;
   }
   const created = await client.rest.checks.create({
     owner: opts.owner, repo: opts.repo, name: opts.name, head_sha: opts.headSha, status: "in_progress",
@@ -69,4 +71,52 @@ export async function finishCheckRun(
     owner: opts.owner, repo: opts.repo, check_run_id: opts.checkRunId,
     status: "completed", conclusion: opts.conclusion, output: opts.output,
   });
+}
+
+export interface CheckReporter {
+  start(job: QueueJob): Promise<number | null>;
+  finishSuccess(checkRunId: number, job: QueueJob, summary: RunSummary): Promise<void>;
+  finishFailure(checkRunId: number, job: QueueJob, error: unknown): Promise<void>;
+}
+
+export function createCheckReporter(opts: {
+  getClient: (installationId: number) => Promise<GitHubClient>;
+  name: string;
+  meta: CheckMeta;
+  log: (event: Record<string, unknown>) => void;
+}): CheckReporter {
+  const { getClient, name, meta, log } = opts;
+  const repoOf = (j: QueueJob) => `${j.owner}/${j.repo}`;
+  return {
+    async start(job) {
+      try {
+        const client = await getClient(job.installationId);
+        const id = await startCheckRun(client, { owner: job.owner, repo: job.repo, headSha: job.headSha, name });
+        log({ event: "check_create", repo: repoOf(job), pr: job.pr, headSha: job.headSha, checkRunId: id });
+        return id;
+      } catch (err) {
+        log({ level: "error", event: "check_error", phase: "start", repo: repoOf(job), pr: job.pr, error: String(err) });
+        return null;
+      }
+    },
+    async finishSuccess(checkRunId, job, summary) {
+      try {
+        const client = await getClient(job.installationId);
+        const conclusion = conclusionFor(summary);
+        await finishCheckRun(client, { owner: job.owner, repo: job.repo, checkRunId, conclusion, output: formatOutput(summary, meta) });
+        log({ event: "check_complete", repo: repoOf(job), pr: job.pr, checkRunId, conclusion, open: summary.created + summary.kept });
+      } catch (err) {
+        log({ level: "error", event: "check_error", phase: "finish", repo: repoOf(job), pr: job.pr, error: String(err) });
+      }
+    },
+    async finishFailure(checkRunId, job, error) {
+      try {
+        const client = await getClient(job.installationId);
+        await finishCheckRun(client, { owner: job.owner, repo: job.repo, checkRunId, conclusion: "failure", output: errorOutput(error) });
+        log({ event: "check_complete", repo: repoOf(job), pr: job.pr, checkRunId, conclusion: "failure", open: null });
+      } catch (err) {
+        log({ level: "error", event: "check_error", phase: "finish", repo: repoOf(job), pr: job.pr, error: String(err) });
+      }
+    },
+  };
 }
