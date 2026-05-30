@@ -22,6 +22,7 @@ Grant exactly these repository permissions:
 | Permission | Level | Why |
 |---|---|---|
 | Pull requests | **Read & write** | List/post/reply/resolve review comments |
+| Checks | **Read & write** | Create/update the per-PR check run |
 | Contents | **Read** | Clone the PR head and base |
 | Metadata | **Read** | Required baseline |
 
@@ -31,6 +32,9 @@ No other permissions are needed.
 
 Subscribe to the **Pull request** event. The server only acts on the
 `opened`, `synchronize`, and `reopened` actions; other actions are ignored.
+
+> No additional event subscription is needed for the check run — mad-reviewer
+> only *creates* checks; it does not react to `check_run`/`check_suite` events.
 
 ## 4. Private key & credentials
 
@@ -57,7 +61,9 @@ From the App page choose **Install App** and install it on your organization
 
 With the server running and reachable, open or push to a PR in an installed
 repo. Within a few seconds (after the [debounce window](/architecture/queue))
-you should see inline review comments appear. Check the server logs — each run
+you should see inline review comments appear. A check run named **`mad-reviewer`** also appears in the PR's status box —
+`success` (green) when no findings remain open, `neutral` (gray) when some do.
+Check the server logs — each run
 emits a structured summary like:
 
 ```json

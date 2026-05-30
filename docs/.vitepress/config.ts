@@ -45,6 +45,7 @@ export default defineConfig({
           { text: "Reconciliation", link: "/architecture/reconciliation" },
           { text: "Orchestration Queue", link: "/architecture/queue" },
           { text: "AI Adapters", link: "/architecture/adapters" },
+          { text: "Check Runs", link: "/architecture/check-runs" },
         ],
       },
       {

@@ -61,6 +61,15 @@ Nothing is posted on a failed run, the workspace is cleaned up, and the job
 retries up to `MAX_RETRIES`. If the process crashes mid-run, the job is reclaimed
 on restart. See [Queue](/architecture/queue).
 
+## Does the check run block merging?
+
+No. By default the check is `success` when no mad-reviewer comments remain open
+and `neutral` when some do — neither blocks a merge. If you *want* it to gate
+merges, make `mad-reviewer` a **required status check** in the branch protection
+rules; then a `neutral` result will hold the PR. A run that errors/times out is
+`failure`. The feature needs the App's `Checks: Read & write` permission and can
+be turned off with `MAD_REVIEWER_CHECKS=false`.
+
 ## Does it support multiple organizations?
 
 The current design targets a single org installation. Multi-org is out of scope

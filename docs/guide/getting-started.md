@@ -91,7 +91,8 @@ Once the App is installed and your server is reachable from GitHub:
 1. Opening or pushing to a PR triggers a webhook.
 2. The job is debounced and enqueued (one run per PR at a time).
 3. A worker clones the PR, loads your skills, runs the AI adapter, and posts
-   inline comments for any bugs found.
+   inline comments for any bugs found — and publishes a `mad-reviewer` check run
+   summarizing the result.
 4. On later pushes, comments for fixed bugs are resolved automatically and new
    bugs are added.
 

@@ -18,6 +18,8 @@ exit immediately with a validation error; numeric values are coerced.
 | `CURSOR_API_KEY` | | — | `cursor` only: read directly by `cursor-agent` for auth (not parsed by mad-reviewer). Required when `MAD_REVIEWER_ADAPTER=cursor` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. `false` ignores them; see [Skills](/guide/skills#your-repo-s-own-skills-native) |
 | `MAD_REVIEWER_DEBUG` | | `false` | Verbose JSON logging. When `true`, the adapter emits `ai_request`/`ai_response` events with the full prompt and raw CLI output, and the runner logs `comment_keep`. See [Logging](#logging) |
+| `MAD_REVIEWER_CHECKS` | | `true` | Publish a Check Run per review on the PR head. `success` when no findings stay open, `neutral` otherwise. Any value other than `false` keeps it on; see [Check Runs](/architecture/check-runs) |
+| `MAD_REVIEWER_CHECK_NAME` | | `mad-reviewer` | Display name of the check (GitHub groups re-runs by the same name) |
 | `AI_TIMEOUT_MS` | | `300000` | Maximum time for one AI CLI invocation, in ms |
 | `DEBOUNCE_MS` | | `15000` | How long to coalesce a burst of pushes before running, in ms |
 | `MAX_RETRIES` | | `3` | Attempts before a job is marked `failed` |
@@ -73,6 +75,13 @@ exit immediately with a validation error; numeric values are coerced.
   Keep it `false` in production: the `ai_request` event embeds the entire prompt,
   which contains the PR diff, and the `ai_response` event embeds the raw CLI
   output. Both can leak source code into your log sink.
+- **`MAD_REVIEWER_CHECKS`** publishes a GitHub Check Run per review. Conclusion is
+  `success` when no mad-reviewer comments remain open after the run and `neutral`
+  when any remain (new or carried over) — it never blocks a merge by default. A
+  run that errors/times out is reported `failure`. It needs the App's
+  **`Checks: Read & write`** permission; if that is missing the check calls
+  fail soft (a `check_error` is logged and the run still posts comments). See
+  [Check Runs](/architecture/check-runs).
 
 ## Logging
 
@@ -97,6 +106,9 @@ to pipe through `jq`/`grep` or ship to your log collector.
 | Summary (no `event` field) | End of a run | `repo`, `pr`, `sha`, `findings`, `created`, `kept`, `resolved` |
 | `retry` / `job_dead` | Job failed and is being retried or has exhausted `MAX_RETRIES` | `attempts`, `maxRetries` |
 | `job_failed` | Run threw — logged with `level:"error"` | `error`, `stack`, `durationMs` |
+| `check_create` | A check run was created/reused on claim | `repo`, `pr`, `headSha`, `checkRunId` |
+| `check_complete` | A check run was finalized | `repo`, `pr`, `checkRunId`, `conclusion`, `open` |
+| `check_error` | A check API call failed (fail-soft) | `repo`, `pr`, `phase`, `error` |
 
 ### Debug-only events (`MAD_REVIEWER_DEBUG=true`)
 
@@ -143,6 +155,8 @@ MAD_REVIEWER_ADAPTER=claude
 # CURSOR_API_KEY=                                          # cursor only (read by cursor-agent)
 # MAD_REVIEWER_LOAD_REPO_SKILLS=true                       # false → ignore the repo's own skills
 # MAD_REVIEWER_DEBUG=false                                  # true → log full AI prompt & raw CLI output
+# MAD_REVIEWER_CHECKS=true                                  # false → no per-PR check run
+# MAD_REVIEWER_CHECK_NAME=mad-reviewer                      # display name of the check
 AI_TIMEOUT_MS=300000
 
 # Orchestration
