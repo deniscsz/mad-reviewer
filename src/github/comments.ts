@@ -9,6 +9,11 @@ export interface GitHubClient {
       createReviewComment: (params: Record<string, unknown>) => Promise<unknown>;
       createReplyForReviewComment: (params: Record<string, unknown>) => Promise<unknown>;
     };
+    checks: {
+      create: (params: Record<string, unknown>) => Promise<{ data: { id: number } }>;
+      update: (params: Record<string, unknown>) => Promise<unknown>;
+      listForRef: (params: Record<string, unknown>) => Promise<{ data: { check_runs: Array<{ id: number; name: string }> } }>;
+    };
   };
 }
 
