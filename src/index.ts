@@ -35,6 +35,9 @@ const adapter = createAdapter(config.adapter, {
   cursorModel: config.cursorModel,
 });
 
+// Map the active adapter to its configured model string for check-run metadata.
+// claude has no per-run model setting, so it falls through to undefined.
+// Add a branch here when a new model-configurable adapter is introduced.
 const checkModel =
   config.adapter === "opencode" ? config.opencodeModel :
   config.adapter === "cursor" ? config.cursorModel :
