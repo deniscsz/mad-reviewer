@@ -2,7 +2,7 @@
 
 Alongside inline comments, `mad-reviewer` publishes a **Check Run** (GitHub
 Checks API) on the PR's head commit — the status + summary that shows up in the
-PR's checks box, the way Cursor BugBot does. It is layered on top of the existing
+PR's checks box. It is layered on top of the existing
 review flow: the inline comments are unchanged; the check is a status summary.
 
 ## Conclusion
@@ -19,9 +19,9 @@ The conclusion is derived from the run's reconcile result
 `failure` for *finding bugs*, so the check never blocks a merge by default. (A
 team can make it a *required* check via branch protection if they want a gate.)
 
-A run that **errors or times out** (could not review) is reported `failure`, with
-the error in the summary — an honest "the bot did not run" signal — only once the
-job has exhausted its retries.
+A run that **errors or times out** is reported `failure` (with the error in the
+summary — an honest "the bot did not run" signal) only after all retries are
+exhausted; while retrying, the check stays `in_progress`.
 
 ## Lifecycle
 

@@ -21,7 +21,8 @@ GitHub org (repos)
 │                         │ debounce + 1/PR lock   │
 │                  ┌──────▼─────────────────────┐  │
 │                  │ Worker → Runner            │  │
-│                  │  (worker: in_progress check → finalize: success/neutral) │
+│                  │  + check run: in_progress  │  │
+│                  │    → success / neutral     │  │
 │                  │  1. mint installation token│  │
 │                  │  2. clone PR head + base   │  │
 │                  │  3. diff → changed files   │  │

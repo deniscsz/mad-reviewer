@@ -61,9 +61,9 @@ From the App page choose **Install App** and install it on your organization
 
 With the server running and reachable, open or push to a PR in an installed
 repo. Within a few seconds (after the [debounce window](/architecture/queue))
-you should see inline review comments appear. A check run named **`mad-reviewer`** also appears in the PR's status box —
-`success` (green) when no findings remain open, `neutral` (gray) when some do.
-Check the server logs — each run
+you should see inline review comments appear, and a check run named
+**`mad-reviewer`** in the PR's status box — `success` (green) when no findings
+remain open, `neutral` (gray) when some do. Check the server logs — each run
 emits a structured summary like:
 
 ```json

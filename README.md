@@ -67,7 +67,7 @@ Findings live in GitHub; SQLite holds only orchestration state.
   reply; reappearing bugs get re-flagged.
 - **GitHub Check Run** — each review also publishes a check on the PR head:
   `success` when no comments remain open, `neutral` when any do (never blocks
-  merge by default). Needs the `Checks: write` App permission.
+  merge by default). Needs the `Checks: Read & write` App permission.
 - **Inline + file-level fallback** — if a line anchor is invalid, it falls back
   to a file-level review comment that is still reconcilable.
 - **Robust orchestration** — debounced, one run per PR, retry on failure,

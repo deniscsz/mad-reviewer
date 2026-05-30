@@ -80,7 +80,7 @@ exit immediately with a validation error; numeric values are coerced.
   when any remain (new or carried over) — it never blocks a merge by default. A
   run that errors/times out is reported `failure`. It needs the App's
   **`Checks: Read & write`** permission; if that is missing the check calls
-  fail soft (a `check_error` is logged and the run still posts comments). See
+  are skipped (a `check_error` is logged and the run still posts comments). See
   [Check Runs](/architecture/check-runs).
 
 ## Logging
