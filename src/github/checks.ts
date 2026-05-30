@@ -1,4 +1,5 @@
 import type { RunSummary } from "../runner.js";
+import type { GitHubClient } from "./comments.js";
 
 export interface CheckMeta {
   adapter: string;
@@ -34,4 +35,38 @@ export function errorOutput(error: unknown): { title: string; summary: string } 
     title: "Revisão falhou",
     summary: `A revisão não pôde ser concluída e nada foi postado.\n\n\`\`\`\n${msg}\n\`\`\``,
   };
+}
+
+export async function startCheckRun(
+  client: GitHubClient,
+  opts: { owner: string; repo: string; headSha: string; name: string },
+): Promise<number> {
+  const existing = await client.rest.checks.listForRef({
+    owner: opts.owner, repo: opts.repo, ref: opts.headSha, check_name: opts.name,
+  });
+  const runs = existing.data.check_runs ?? [];
+  if (runs.length > 0) {
+    await client.rest.checks.update({
+      owner: opts.owner, repo: opts.repo, check_run_id: runs[0].id, status: "in_progress",
+    });
+    return runs[0].id;
+  }
+  const created = await client.rest.checks.create({
+    owner: opts.owner, repo: opts.repo, name: opts.name, head_sha: opts.headSha, status: "in_progress",
+  });
+  return created.data.id;
+}
+
+export async function finishCheckRun(
+  client: GitHubClient,
+  opts: {
+    owner: string; repo: string; checkRunId: number;
+    conclusion: "success" | "neutral" | "failure";
+    output: { title: string; summary: string };
+  },
+): Promise<void> {
+  await client.rest.checks.update({
+    owner: opts.owner, repo: opts.repo, check_run_id: opts.checkRunId,
+    status: "completed", conclusion: opts.conclusion, output: opts.output,
+  });
 }

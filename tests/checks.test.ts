@@ -36,3 +36,57 @@ describe("errorOutput", () => {
     expect(out.summary).toContain("kaboom");
   });
 });
+
+import { vi } from "vitest";
+import { startCheckRun, finishCheckRun } from "../src/github/checks.js";
+
+function fakeClient(checksOver: Record<string, unknown> = {}) {
+  return {
+    graphql: vi.fn(),
+    rest: {
+      pulls: { createReviewComment: vi.fn(), createReplyForReviewComment: vi.fn() },
+      checks: {
+        create: vi.fn(async () => ({ data: { id: 999 } })),
+        update: vi.fn(async () => ({})),
+        listForRef: vi.fn(async () => ({ data: { check_runs: [] } })),
+        ...checksOver,
+      },
+    },
+  } as any;
+}
+
+describe("startCheckRun", () => {
+  it("creates a new in_progress check when none exists for the sha", async () => {
+    const client = fakeClient();
+    const id = await startCheckRun(client, { owner: "o", repo: "r", headSha: "h", name: "mad-reviewer" });
+    expect(id).toBe(999);
+    expect(client.rest.checks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: "o", repo: "r", name: "mad-reviewer", head_sha: "h", status: "in_progress" }),
+    );
+  });
+
+  it("reuses an existing check for the sha instead of creating one", async () => {
+    const client = fakeClient({
+      listForRef: vi.fn(async () => ({ data: { check_runs: [{ id: 42, name: "mad-reviewer" }] } })),
+    });
+    const id = await startCheckRun(client, { owner: "o", repo: "r", headSha: "h", name: "mad-reviewer" });
+    expect(id).toBe(42);
+    expect(client.rest.checks.create).not.toHaveBeenCalled();
+    expect(client.rest.checks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ check_run_id: 42, status: "in_progress" }),
+    );
+  });
+});
+
+describe("finishCheckRun", () => {
+  it("completes the check with conclusion and output", async () => {
+    const client = fakeClient();
+    await finishCheckRun(client, {
+      owner: "o", repo: "r", checkRunId: 7, conclusion: "neutral",
+      output: { title: "t", summary: "s" },
+    });
+    expect(client.rest.checks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ check_run_id: 7, status: "completed", conclusion: "neutral" }),
+    );
+  });
+});
