@@ -69,6 +69,27 @@ describe("tick", () => {
     await tick(deps);
     expect(checks.finishSuccess).not.toHaveBeenCalled();
     expect(queue.complete).toHaveBeenCalledWith(qjob); // job still completes
+    expect(checks.finishFailure).not.toHaveBeenCalled();
+  });
+
+  it("survives a check reporter whose start rejects", async () => {
+    const queue = makeQueue(qjob);
+    const checks = { start: vi.fn(async () => { throw new Error("api down"); }), finishSuccess: vi.fn(), finishFailure: vi.fn() };
+    const runOne = vi.fn(async () => summary);
+    const deps: WorkerDeps = { queue: queue as any, runOne, maxRetries: 3, log: vi.fn(), checks: checks as any };
+    await expect(tick(deps)).resolves.toBe(true);
+    expect(queue.complete).toHaveBeenCalledWith(qjob);
+    expect(checks.finishSuccess).not.toHaveBeenCalled(); // checkId was null
+  });
+
+  it("does not fail an already-completed job when finishSuccess rejects", async () => {
+    const queue = makeQueue(qjob);
+    const checks = { start: vi.fn(async () => 123), finishSuccess: vi.fn(async () => { throw new Error("boom"); }), finishFailure: vi.fn() };
+    const runOne = vi.fn(async () => summary);
+    const deps: WorkerDeps = { queue: queue as any, runOne, maxRetries: 3, log: vi.fn(), checks: checks as any };
+    await expect(tick(deps)).resolves.toBe(true);
+    expect(queue.complete).toHaveBeenCalledWith(qjob);
+    expect(queue.fail).not.toHaveBeenCalled();
   });
 
   it("finishes failure only when the failed job is terminal (dead)", async () => {

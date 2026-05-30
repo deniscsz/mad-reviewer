@@ -16,20 +16,20 @@ export async function tick(deps: WorkerDeps): Promise<boolean> {
   const repo = `${job.owner}/${job.repo}`;
   const startedAt = Date.now();
   deps.log({ event: "job_start", repo, pr: job.pr, headSha: job.headSha });
-  const checkId = deps.checks ? await deps.checks.start(job) : null;
+  const checkId = deps.checks ? await deps.checks.start(job).catch(() => null) : null;
   try {
     const summary = await deps.runOne(job);
     deps.queue.complete(job);
     deps.log({ event: "job_done", repo, pr: job.pr, headSha: job.headSha, durationMs: Date.now() - startedAt });
     if (deps.checks && checkId != null && summary) {
-      await deps.checks.finishSuccess(checkId, job, summary);
+      await deps.checks.finishSuccess(checkId, job, summary).catch(() => {});
     }
   } catch (err) {
     const e = err as Error;
     deps.log({ level: "error", event: "job_failed", repo, pr: job.pr, headSha: job.headSha, durationMs: Date.now() - startedAt, error: String(err), stack: e?.stack });
     const dead = deps.queue.fail(job, deps.maxRetries);
     if (deps.checks && checkId != null && dead) {
-      await deps.checks.finishFailure(checkId, job, err);
+      await deps.checks.finishFailure(checkId, job, err).catch(() => {});
     }
   }
   return true;
