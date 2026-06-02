@@ -42,6 +42,7 @@ const adapter = createAdapter(config.adapter, {
 const checkModel =
   config.adapter === "opencode" ? config.opencodeModel :
   config.adapter === "cursor" ? config.cursorModel :
+  config.adapter === "codex" ? config.codexModel :
   undefined;
 
 const checks = config.checksEnabled
