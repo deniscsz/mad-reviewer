@@ -21,6 +21,8 @@ GitHub org (repos)
 │                         │ debounce + 1/PR lock   │
 │                  ┌──────▼─────────────────────┐  │
 │                  │ Worker → Runner            │  │
+│                  │  + check run: in_progress  │  │
+│                  │    → success / neutral     │  │
 │                  │  1. mint installation token│  │
 │                  │  2. clone PR head + base   │  │
 │                  │  3. diff → changed files   │  │
@@ -43,7 +45,8 @@ GitHub API
 |---|---|
 | `webhook.ts` | Validate the event, map a PR payload to a `Job`, enqueue it |
 | `queue/queue.ts` | SQLite-backed orchestration: debounce, one-run-per-PR lock, retry, skip already-processed commits, crash-reclaim |
-| `worker.ts` | Drain the queue: claim → run → complete, or fail+retry |
+| `worker.ts` | Drain the queue: claim → run → complete (or fail+retry), and drive the per-PR check-run lifecycle |
+| `github/checks.ts` | Publish the per-PR check run (fail-soft): start on claim, finalize with conclusion + summary |
 | `runner.ts` | Orchestrate one review run (the pipeline above) |
 | `workspace.ts` | Clone the PR head + base and compute the diff (via the safe subprocess wrapper) |
 | `skills/loader.ts` + `skills/autoApply.ts` | Assemble the effective 3-tier skill set |

@@ -65,6 +65,9 @@ Findings live in GitHub; SQLite holds only orchestration state.
   even when it moves lines, so comments are never duplicated.
 - **Self-resolving comments** — fixed bugs get their threads resolved with a
   reply; reappearing bugs get re-flagged.
+- **GitHub Check Run** — each review also publishes a check on the PR head:
+  `success` when no comments remain open, `neutral` when any do (never blocks
+  merge by default). Needs the `Checks: Read & write` App permission.
 - **Inline + file-level fallback** — if a line anchor is invalid, it falls back
   to a file-level review comment that is still reconcilable.
 - **Robust orchestration** — debounced, one run per PR, retry on failure,
@@ -120,6 +123,7 @@ client forwards every delivery to `localhost:3000/api/github/webhooks`.
 
 1. Create a GitHub App (org-level). **Permissions:**
    - Pull requests: **Read & write** (post/resolve comments)
+   - Checks: **Read & write** (publish the per-PR check run)
    - Contents: **Read** (clone the PR)
    - Metadata: **Read**
 2. **Subscribe** to the `Pull request` event.
@@ -144,6 +148,8 @@ All configuration is via environment variables (parsed/validated in
 | `MAD_REVIEWER_CODEX_MODEL` | | — | `codex` only: model for `codex exec --model` (unset → Codex default); needs `CODEX_API_KEY` |
 | `MAD_REVIEWER_LOAD_REPO_SKILLS` | | `true` | Load the reviewed repo's own native skills (`.claude/skills`, …) in addition to mad-reviewer's. Set `false` to ignore them |
 | `MAD_REVIEWER_DEBUG` | | `false` | Verbose logging: emit full AI prompt + raw CLI output. Dev-only — may leak diff content |
+| `MAD_REVIEWER_CHECKS` | | `true` | Publish a Check Run per review. Any value other than `false` keeps it on |
+| `MAD_REVIEWER_CHECK_NAME` | | `mad-reviewer` | Name of the check (GitHub groups re-runs by name) |
 | `AI_TIMEOUT_MS` | | `300000` | Per-run AI CLI timeout (ms) |
 | `DEBOUNCE_MS` | | `15000` | Coalesce a burst of pushes before running (ms) |
 | `MAX_RETRIES` | | `3` | Retries before a job is marked failed |
@@ -264,6 +270,7 @@ src/
   skills/            # loader (3-tier) + auto-apply glob selection
   adapters/          # AiAdapter interface + claude, opencode, cursor & codex adapters + parser
   github/comments.ts # list active bot comments, post inline, resolve thread
+  github/checks.ts   # publish the per-PR check run (status + summary)
   queue/queue.ts     # SQLite orchestration queue
   workspace.ts       # clone PR head + diff (via safe subprocess wrapper)
   utils/             # execFileNoThrow (the only child_process user)

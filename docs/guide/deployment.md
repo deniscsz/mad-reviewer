@@ -16,6 +16,11 @@ The runtime environment must provide:
   (`codex` CLI + `CODEX_API_KEY`); set via `MAD_REVIEWER_ADAPTER`
 - A **persistent volume** for the SQLite queue (`SQLITE_PATH`)
 
+> The GitHub App also needs the **`Checks: Read & write`** permission to publish
+> the per-PR check run (existing installs must re-approve). This is not a runtime
+> dependency — without it the check is skipped (a `check_error` is logged) and the
+> review comments still post. See [GitHub App Setup](/guide/github-app-setup).
+
 ## Docker
 
 The repo ships a `Dockerfile` that installs `git`, builds the project, and

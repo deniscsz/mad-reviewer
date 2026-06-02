@@ -4,7 +4,7 @@ import { loadConfig } from "./config.js";
 import { Queue, type QueueJob } from "./queue/queue.js";
 import { registerWebhooks } from "./webhook.js";
 import { startWorker } from "./worker.js";
-import { runReview } from "./runner.js";
+import { runReview, type RunSummary } from "./runner.js";
 import { createAdapter } from "./adapters/index.js";
 import { clonePrHead, computeDiff } from "./workspace.js";
 import { loadSkills } from "./skills/loader.js";
@@ -16,6 +16,7 @@ import {
   type GitHubClient,
 } from "./github/comments.js";
 import type { Job } from "./types.js";
+import { createCheckReporter } from "./github/checks.js";
 
 const config = loadConfig();
 const log = (event: Record<string, unknown>) => console.log(JSON.stringify(event));
@@ -35,6 +36,23 @@ const adapter = createAdapter(config.adapter, {
   codexModel: config.codexModel,
 });
 
+// Map the active adapter to its configured model string for check-run metadata.
+// claude has no per-run model setting, so it falls through to undefined.
+// Add a branch here when a new model-configurable adapter is introduced.
+const checkModel =
+  config.adapter === "opencode" ? config.opencodeModel :
+  config.adapter === "cursor" ? config.cursorModel :
+  undefined;
+
+const checks = config.checksEnabled
+  ? createCheckReporter({
+      getClient,
+      name: config.checkName,
+      meta: { adapter: config.adapter, model: checkModel },
+      log,
+    })
+  : undefined;
+
 async function getClient(installationId: number): Promise<GitHubClient> {
   const octokit = await probot.auth(installationId);
   return octokit as unknown as GitHubClient;
@@ -46,9 +64,9 @@ async function getInstallationToken(installationId: number): Promise<string> {
   return auth.token;
 }
 
-async function runOne(qjob: QueueJob): Promise<void> {
+async function runOne(qjob: QueueJob): Promise<RunSummary> {
   const job: Job = qjob;
-  await runReview(job, {
+  return runReview(job, {
     getClient,
     getInstallationToken,
     clonePrHead,
@@ -87,8 +105,8 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(config.port, () => {
-  log({ event: "listening", port: config.port, adapter: config.adapter, debug: config.debug });
-  const stopWorker = startWorker({ queue, runOne, maxRetries: config.maxRetries, log }, config.workerPollMs);
+  log({ event: "listening", port: config.port, adapter: config.adapter, debug: config.debug, checks: config.checksEnabled });
+  const stopWorker = startWorker({ queue, runOne, maxRetries: config.maxRetries, log, checks }, config.workerPollMs);
 
   const shutdown = (signal: string) => {
     log({ event: "shutdown", signal });
