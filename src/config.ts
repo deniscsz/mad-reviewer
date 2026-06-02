@@ -8,6 +8,7 @@ const EnvSchema = z.object({
   MAD_REVIEWER_OPENCODE_MODEL: z.string().min(1).optional(),
   MAD_REVIEWER_OPENCODE_CONFIG: z.string().default("./opencode.review.json"),
   MAD_REVIEWER_CURSOR_MODEL: z.string().min(1).optional(),
+  MAD_REVIEWER_CODEX_MODEL: z.string().min(1).optional(),
   MAD_REVIEWER_LOAD_REPO_SKILLS: z.string().default("true"),
   MAD_REVIEWER_DEBUG: z.string().default("false"),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
@@ -29,6 +30,7 @@ export interface Config {
   opencodeModel?: string;
   opencodeConfig: string;
   cursorModel?: string;
+  codexModel?: string;
   loadRepoSkills: boolean;
   debug: boolean;
   aiTimeoutMs: number;
@@ -52,6 +54,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     opencodeModel: e.MAD_REVIEWER_OPENCODE_MODEL,
     opencodeConfig: e.MAD_REVIEWER_OPENCODE_CONFIG,
     cursorModel: e.MAD_REVIEWER_CURSOR_MODEL,
+    codexModel: e.MAD_REVIEWER_CODEX_MODEL,
     loadRepoSkills: e.MAD_REVIEWER_LOAD_REPO_SKILLS !== "false",
     debug: e.MAD_REVIEWER_DEBUG === "true",
     aiTimeoutMs: e.AI_TIMEOUT_MS,

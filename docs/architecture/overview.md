@@ -47,7 +47,7 @@ GitHub API
 | `runner.ts` | Orchestrate one review run (the pipeline above) |
 | `workspace.ts` | Clone the PR head + base and compute the diff (via the safe subprocess wrapper) |
 | `skills/loader.ts` + `skills/autoApply.ts` | Assemble the effective 3-tier skill set |
-| `adapters/*` | The `AiAdapter` interface and the default `claude` implementation |
+| `adapters/*` | The `AiAdapter` interface and the built-in `claude`, `opencode`, `cursor` & `codex` implementations |
 | `fingerprint.ts` | Deterministic bug identity + the comment marker embed/parse |
 | `reconciler.ts` | Pure create/keep/resolve decision logic |
 | `github/comments.ts` | List the bot's active comments, post inline, resolve threads |

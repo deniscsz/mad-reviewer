@@ -24,7 +24,7 @@ features:
   - title: Your skills, your rules
     details: Markdown review skills in three tiers — always-on defaults, glob-selected auto-apply skills, and per-repo overrides committed in the reviewed repo.
   - title: Configurable AI tool
-    details: Default is the headless claude CLI; the adapter interface is swappable, so cursor, opencode, or anything else can be added behind the same contract.
+    details: Default is the headless claude CLI; the adapter interface is swappable, so cursor, opencode, codex, or anything else can be added behind the same contract.
   - title: Safe by construction
     details: Every subprocess runs through a single no-shell wrapper with array arguments, so PR-controlled values can never be interpreted by a shell.
   - title: Robust orchestration
