@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export interface QueueJob {
   owner: string;
@@ -17,6 +19,9 @@ export class Queue {
 
   constructor(dbPath: string, private debounceMs: number, log: LogFn = () => {}) {
     this.log = log;
+    // better-sqlite3 won't create the parent directory; ensure it exists so a
+    // fresh checkout with the default ./data/queue.db path starts cleanly.
+    if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.exec(`
